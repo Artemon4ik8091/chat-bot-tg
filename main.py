@@ -38,10 +38,29 @@ def write_db(db):
     with open('db.json', 'w') as outfile:
         outfile.write(js)
 
+known_errs = {
+    'A request to the Telegram API was unsuccessful. Error code: 400. Description: Bad Request: not enough rights to restrict/unrestrict chat member': 'Увы, но у бота не хватает прав для этого.'
+}
+
 def catch_error(message, e, err_type = None):
     if not err_type:
         global log_stream, known_errs
         e = str(e)
+
+        # Check error in known_errs
+        print(e)
+        if e in known_errs:
+            bot.send_message(message.chat.id, known_errs[e])
+        else:
+            logging.error(traceback.format_exc()) # Log error
+            err = log_stream.getvalue() # Error to variable
+
+            bot.send_message(message.chat.id, 'Critical error (свяжитесь с @Justuser_31) :\n\n' + telebot.formatting.hcode(err), parse_mode='HTML')
+
+            log_stream.truncate(0) # Clear
+            log_stream.seek(0) # Clear
+    elif err_type == 'no_user':
+        bot.send_message(message.chat.id, 'Не указан пользователь.')
 
 def read_users():
     global users
@@ -197,7 +216,7 @@ bot = telebot.TeleBot(db['token'])
 
 @bot.message_handler(commands=['start'])
 def start_message(message):
-    bot.reply_to(message, "Привет, я недо-ирис. Форк на Python.")
+    bot.reply_to(message, "Привет, я недо-ирис чат бот. Фанатский форк на Python. Данный бот не имеет ничего общего с командой разработчиков оригинального телеграмм бота Iris.")
 
 @bot.message_handler(func=lambda message: True)
 def echo_all(message):
@@ -330,6 +349,30 @@ def echo_all(message):
             if have_rights(message):
                 bot.set_chat_permissions(message.chat.id, telebot.types.ChatPermissions(can_send_messages=True, can_send_other_messages = True, can_send_polls = True))
                 bot.reply_to(message, 'Ладно, мне надоела тишина. Открываю чат..')
+        except Exception as e:
+            catch_error(message, e)
+
+    if message.text.upper() == "ПИН":
+        try:
+            if have_rights(message):
+                bot.pin_chat_message(message.chat.id, message.reply_to_message.id)
+                bot.reply_to(message, "Видимо это что то важное.. кхм... Закрепил!")
+        except:
+            catch_error(message, e)
+    
+    if message.text.upper() == "АНПИН":
+        try:
+            if have_rights(message):
+                bot.unpin_chat_message(message.chat.id, message.reply_to_message.id)
+                bot.reply_to(message, "Больше не важное, лол.. кхм... Открепил!")
+        except:
+            catch_error(message, e)
+    
+    if message.text.upper() == "-СМС":
+        try:
+            if have_rights(message):
+                bot.delete_message(message.chat.id, message.reply_to_message.id)
+                bot.delete_message(message.chat.id, message.id)
         except Exception as e:
             catch_error(message, e)
 
