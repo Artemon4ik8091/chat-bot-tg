@@ -5,7 +5,7 @@ import random
 
 from telebot import types,util
 
-####### CREATE DB IF NOT EXIST
+####### CREATE DB IF NOT EXIST ##########
 
 if not os.path.exists('db.json'):
     db = {'token': 'None'}
@@ -426,6 +426,13 @@ def echo_all(message):
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} пригласил на чай {get_name(message)}', parse_mode='HTML')
+        except:
+            bot.reply_to(message, "Err.")
+
+    if message.text.upper() == 'КУСЬ':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'{username} кусьнул {get_name(message)}', parse_mode='HTML')
         except:
             bot.reply_to(message, "Err.")
 
