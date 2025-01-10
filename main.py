@@ -60,7 +60,7 @@ def catch_error(message, e, err_type = None):
             log_stream.truncate(0) # Clear
             log_stream.seek(0) # Clear
     elif err_type == 'no_user':
-        bot.send_message(message.chat.id, 'Не указан пользователь.')
+        bot.send_message(message.chat.id, 'Так.. а кому это адресованно то, глупый админ?')
 
 def read_users():
     global users
@@ -230,6 +230,8 @@ def echo_all(message):
 
     if message.text.upper() == 'БОТ': bot.reply_to(message, f'✅ На месте')
 
+    if message.text.upper().startswith("ЧТО С БОТОМ"): bot.reply_to(message, f'Да тут я.. отойти даже нельзя блин.. Я ТОЖЕ ИМЕЮ ПРАВО НА ОТДЫХ!')
+
     if message.text.upper() == 'КТО Я':
         username = message.from_user.first_name          #Получаем имя юзера
         bot.reply_to(message, f"Ты {username}!")
@@ -248,9 +250,9 @@ def echo_all(message):
         max, min = int(max), int(min)
         try:
             if max < min:
-                bot.reply_to(message, f"Первое число должно быть меньше второго!")
+                bot.reply_to(message, f"Цифарки местами поменяй, олух")
             if max == min:
-                bot.reply_to(message, f"Да ты гений.")
+                bot.reply_to(message, f"Да ты гений я смотрю, умом берёшь.")
             else:
                 result = random.randint(min, max)
                 bot.reply_to(message, f"Случайное число из диапазона [{min}..{max}] выпало на {result}")
@@ -375,5 +377,56 @@ def echo_all(message):
                 bot.delete_message(message.chat.id, message.id)
         except Exception as e:
             catch_error(message, e)
+    
+##############       RP COMMANDS        #################
+
+    if message.text.upper() == 'ОБНЯТЬ':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'{username} обнял {get_name(message)}', parse_mode='HTML')
+        except:
+            bot.reply_to(message, "Err.")
+
+    if message.text.upper() == 'ПОЦЕЛОВАТЬ':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'{username} поцеловал {get_name(message)}', parse_mode='HTML')
+        except:
+            bot.reply_to(message, "Err.")
+
+    if message.text.upper() == 'ДАТЬ ПЯТЬ':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'{username} дал пять {get_name(message)}', parse_mode='HTML')
+        except:
+            bot.reply_to(message, "Err.")
+
+    if message.text.upper() == 'ПОГЛАДИТЬ':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'{username} погладил {get_name(message)}', parse_mode='HTML')
+        except:
+            bot.reply_to(message, "Err.")
+
+    if message.text.upper() == 'ПОКОРМИТЬ':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'{username} покормил {get_name(message)}', parse_mode='HTML')
+        except:
+            bot.reply_to(message, "Err.")
+
+    if message.text.upper() == 'ЗАБРАТЬ В РАБСТВО':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'{username} забрал в рабство {get_name(message)}', parse_mode='HTML')
+        except:
+            bot.reply_to(message, "Err.")
+
+    if message.text.upper() == 'ПРИГЛАСИТЬ НА ЧАЙ':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'{username} пригласил на чай {get_name(message)}', parse_mode='HTML')
+        except:
+            bot.reply_to(message, "Err.")
 
 bot.polling(none_stop=True)
