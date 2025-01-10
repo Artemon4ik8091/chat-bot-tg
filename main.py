@@ -27,7 +27,7 @@ if not os.path.exists('la.json'):
         js = json.dumps(la, indent=2)
         with open('la.json', 'w') as outfile:
                 outfile.write(js)
-############WORK WITH DBs##########
+############ WORK WITH DBs ##########
 
 def read_db():
     with open('db.json', 'r') as openfile:
