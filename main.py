@@ -238,13 +238,6 @@ def echo_all(message):
         except:
             return 0
     if message.text.upper().startswith('МУТ'):
-        #try:
-        #    target = message.reply_to_message.from_user.id
-        #    bot.restrict_chat_member(message.chat.id, target, until_date = message.date)
-        #    bot.reply_to(message, "Я заклеил ему рот.")
-        #except:
-        #    bot.reply_to(message, "Странно.. но я не смог почему то это сделать.. Может этот человек имеет префикс? Проверь пожалуйста.")
-
         try:
             if have_rights(message):
                 target = get_target(message)
@@ -267,15 +260,6 @@ def echo_all(message):
 
 
     if message.text.upper().startswith('РАЗМУТ'):
-        #try:
-        #    target = message.reply_to_message.from_user.id
-        #    bot.restrict_chat_member(message.chat.id, target, can_send_messages=True
-        #                            , can_send_other_messages = True, can_send_polls = True
-        #                            , can_add_web_page_previews = True, until_date = message.date)
-        #    bot.reply_to(message, "Ладно, так и быть, пусть он говорит.")
-        #except:
-        #    bot.reply_to(message, "Странно.. но я не смог почему то это сделать.. Не знаю почему так..")
-
         try:
             if have_rights(message):
                 target = get_target(message)
@@ -291,14 +275,6 @@ def echo_all(message):
             catch_error(message, e)
 
     if message.text.upper() == "КИК":
-        #try:
-        #    target = message.reply_to_message.from_user.id
-        #    bot.ban_chat_member(message.chat.id, target)
-        #    bot.unban_chat_member(message.chat.id, target)
-        #    bot.reply_to(message, "Этот плохиш был изгнан с сие великой группы.")
-        #except:
-        #    bot.reply_to(message, "Странно.. но я не смог почему то это сделать.. Может этот человек имеет префикс? Проверь пожалуйста.")
-
         try:
             if have_rights(message):
                 target = get_target(message)
@@ -314,13 +290,6 @@ def echo_all(message):
             catch_error(message, e)
 
     if message.text.upper() == "БАН":
-        #try:
-        #    target = message.reply_to_message.from_user.id
-        #    bot.ban_chat_member(message.chat.id, target)
-        #    bot.reply_to(message, "Этот плохиш был изгнан с сие великой группы и не имеет права прощения!")
-        #except:
-        #    bot.reply_to(message, "Странно.. но я не смог почему то это сделать.. Может этот человек имеет префикс? Проверь пожалуйста.")
-
         try:
             if have_rights(message):
                 target = get_target(message)
@@ -334,13 +303,6 @@ def echo_all(message):
             catch_error(message, e)
 
     if message.text.upper() == "РАЗБАН":
-        #try:
-        #    target = message.reply_to_message.from_user.id
-        #    bot.unban_chat_member(message.chat.id, target)
-        #    bot.reply_to(message, "Ладно, может право на прощение он и имеет.. Но только единожды! Наверное..")
-        #except:
-        #    bot.reply_to(message, "Странно.. но я не смог почему то это сделать.. Не знаю почему так..")
-
         try:
             if have_rights(message):
                 target = get_target(message)
