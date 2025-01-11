@@ -436,4 +436,11 @@ def echo_all(message):
         except:
             bot.reply_to(message, "Err.")
 
+    if message.text.upper() == 'ОТСОСАТЬ':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'{username} отсосал у {get_name(message)}', parse_mode='HTML')
+        except:
+            bot.reply_to(message, "Err")
+
 bot.polling(none_stop=True)
