@@ -475,6 +475,81 @@ def echo_all(message):
         except:
             #bot.reply_to(message, "Err.")
             return 0
+        
+    if message.text.upper() == 'ИСПУГАТЬ':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'{username} испугал {get_name(message)}', parse_mode='HTML')
+        except:
+            #bot.reply_to(message, "Err.")
+            return 0
+        
+    if message.text.upper() == 'ИЗНАСИЛОВАТЬ':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'{username} изнасиловал {get_name(message)}', parse_mode='HTML')
+        except:
+            #bot.reply_to(message, "Err.")
+            return 0
+        
+    if message.text.upper() == 'ОТДАТЬСЯ':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'{username} полностью отдался {get_name(message)}', parse_mode='HTML')
+        except:
+            #bot.reply_to(message, "Err.")
+            return 0
+        
+    if message.text.upper() == 'ОТРАВИТЬ':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'{username} отравил {get_name(message)}', parse_mode='HTML')
+        except:
+            #bot.reply_to(message, "Err.")
+            return 0
+        
+    if message.text.upper() == 'УДАРИТЬ':
+        username = message.from_user.first_name
+        rand = random.randint(1, 5)
+        if (rand == 1):
+            work = "в глаз"
+        elif (rand == 2):
+            work = "по щеке"
+        elif (rand == 3):
+            work = "в челюсть"
+        elif (rand == 4):
+            work = "в живот"
+        elif (rand == 5):
+            work = "по виску"
+        try:
+            bot.reply_to(message, f'{username} ударил {work} {get_name(message)}', parse_mode='HTML')
+        except:
+            #bot.reply_to(message, "Err.")
+            return 0
+        
+    if message.text.upper() == 'УБИТЬ':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'{username} жестоко убил {get_name(message)}', parse_mode='HTML')
+        except:
+            #bot.reply_to(message, "Err.")
+            return 0
+        
+    if message.text.upper() == 'ПОНЮХАТЬ':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'{username} понюхал {get_name(message)}', parse_mode='HTML')
+        except:
+            #bot.reply_to(message, "Err.")
+            return 0
+        
+    if message.text.upper() == 'КАСТРИРОВАТЬ':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'{username} лишил наследства {get_name(message)}', parse_mode='HTML')
+        except:
+            #bot.reply_to(message, "Err.")
+            return 0
 
     if message.text.upper() == 'ЗАБРАТЬ В РАБСТВО':
         username = message.from_user.first_name
@@ -483,6 +558,15 @@ def echo_all(message):
         except:
             #bot.reply_to(message, "Err.")
             return 0
+        
+    if message.text.upper() == 'ПОЖАТЬ РУКУ':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'{username} крепко пожал руку {get_name(message)}', parse_mode='HTML')
+        except:
+            #bot.reply_to(message, "Err.")
+            return 0
+
 
     if message.text.upper() == 'ПРИГЛАСИТЬ НА ЧАЙ':
         username = message.from_user.first_name
