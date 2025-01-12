@@ -237,25 +237,28 @@ def echo_all(message):
         bot.reply_to(message, f"Ты {username}!")
 
     if message.text.upper().startswith("РАНДОМ "):
-        msg = message.text.upper()
-        msg = msg.replace("РАНДОМ ", "")
-        min = ""
-        max = ""
-        for item in msg:
-            if item != " ":
-                min += item
-            else:
-                break
-        max = msg.replace(f"{min} ", "")
-        max, min = int(max), int(min)
         try:
-            if max < min:
-                bot.reply_to(message, f"Цифарки местами поменяй, олух")
-            if max == min:
-                bot.reply_to(message, f"Да ты гений я смотрю, умом берёшь.")
-            else:
-                result = random.randint(min, max)
-                bot.reply_to(message, f"Случайное число из диапазона [{min}..{max}] выпало на {result}")
+            msg = message.text.upper()
+            msg = msg.replace("РАНДОМ ", "")
+            min = ""
+            max = ""
+            for item in msg:
+                if item != " ":
+                    min += item
+                else:
+                    break
+            max = msg.replace(f"{min} ", "")
+            max, min = int(max), int(min)
+            try:
+                if max < min:
+                    bot.reply_to(message, f"Цифарки местами поменяй, олух")
+                if max == min:
+                    bot.reply_to(message, f"Да ты гений я смотрю, умом берёшь.")
+                else:
+                    result = random.randint(min, max)
+                    bot.reply_to(message, f"Случайное число из диапазона [{min}..{max}] выпало на {result}")
+            except:
+                return 0
         except:
             return 0
     if message.text.upper().startswith('МУТ'):
