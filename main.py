@@ -447,7 +447,7 @@ def echo_all(message):
     if message.text.upper() == 'МОЙ':
         username = message.from_user.first_name
         try:
-            bot.reply_to(message, f'{username} зацеловала до смерти, утащила к себе и приковала к батарее {get_name(message)}', parse_mode='HTML')
+            bot.reply_to(message, f'{username} зацеловал до смерти, утащил к себе и приковал к батарее {get_name(message)}', parse_mode='HTML')
         except:
             #bot.reply_to(message, "Err.")
             return 0
@@ -455,7 +455,7 @@ def echo_all(message):
     if message.text.upper() == 'МОЯ':
         username = message.from_user.first_name
         try:
-            bot.reply_to(message, f'{username} зацеловала до смерти, утащила к себе и приковала к батарее {get_name(message)}', parse_mode='HTML')
+            bot.reply_to(message, f'{username} зацеловал до смерти, утащил к себе и приковал к батарее {get_name(message)}', parse_mode='HTML')
         except:
             #bot.reply_to(message, "Err.")
             return 0
