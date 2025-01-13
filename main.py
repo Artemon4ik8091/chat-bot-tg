@@ -234,7 +234,10 @@ def echo_all(message):
 
     if message.text.upper() == 'КТО Я':
         username = message.from_user.first_name          #Получаем имя юзера
-        bot.reply_to(message, f"Ты {username}!")
+        bot.reply_to(message, f'''Ты {username}!
+                     
+                    <tg-spoiler>Функция просто ещё не реализованна полностью, извините.</tg-spoiler>
+                     ''', parse_mode='HTML')
 
     if message.text.upper().startswith("РАНДОМ "):
         try:
@@ -357,13 +360,14 @@ def echo_all(message):
         except Exception as e:
             catch_error(message, e)
 
-    if message.text.upper() == "ПИН":
+    if message.text.upper() == "ПИН" or message.text.upper() == "ЗАКРЕП":
         try:
             if have_rights(message):
                 bot.pin_chat_message(message.chat.id, message.reply_to_message.id)
                 bot.reply_to(message, "Видимо это что то важное.. кхм... Закрепил!")
         except:
-            catch_error(message, e)
+            #catch_error(message, e)
+            return 0
     
     if message.text.upper() == "АНПИН":
         try:
@@ -380,6 +384,82 @@ def echo_all(message):
                 bot.delete_message(message.chat.id, message.id)
         except Exception as e:
             catch_error(message, e)
+
+    if message.text.upper() == ".ХЕЛП":
+        bot.reply_to(message, '''Помощь по командам:
+
+<blockquote expandable><b>Основные команды бота</b>
+Бан/Разбан - Блокировка/разблокировка пользователя
+Кик - Изгнание пользователя
+Мут/Размут - Лишение/выдача права слова пользователю
+Закреп||Пин - Прикрепить сообщение
+Анпин - открепить сообщение
+Рандом a b - Случайный выбор числа в диапазоне a..b
+.Хелп - Этот список
+Пинг/Кинг/Бот - Для проверки бота
+Что с ботом? - ..)
+
+</blockquote>
+
+<blockquote expandable><b>РП-Команды</b>
+Обнять
+Поцеловать
+Погладить
+Покормить
+Дать пять
+Забрать в рабство
+Пригласить на чай
+Кусь
+Отсосать
+Поздравить
+Прижать
+Потрогать
+Пнуть
+Расстрелять
+Испугать
+Изнасиловать
+Отдаться
+Отравить
+Ударить
+Убить
+Понюхать
+Кастрировать
+Пожать руку
+Выебать
+Извиниться
+Лизнуть
+Шлёпнуть
+Послать нахуй
+Похвалить
+Сжечь
+Трахнуть
+Ущипнуть
+Уебать
+Записать на ноготочки
+Делать секс
+Связать
+Заставить
+Повесить
+Уничтожить
+Продать
+Щекотать
+Взорвать
+Шмальнуть
+Засосать
+Лечь
+Унизить
+Арестовать
+Наорать
+Рассмешить
+Ушатать
+Порвать
+Выкопать
+Выпороть
+Закопать
+Выпить
+Мой/Моя 
+Обнять всех
+Наказать</blockquote>''', parse_mode='HTML')
     
 ##############       RP COMMANDS        #################
 
