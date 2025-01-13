@@ -870,4 +870,12 @@ def echo_all(message):
             #bot.reply_to(message, "Err")
             return 0
 
+    if message.text.upper() == 'ОБНЯТЬ ВСЕХ':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'{username} обнял аболютно всех в этом чате.', parse_mode='HTML')
+        except:
+            #bot.reply_to(message, "Err")
+            return 0
+
 bot.polling(none_stop=True)
