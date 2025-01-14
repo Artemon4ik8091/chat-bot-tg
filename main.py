@@ -3,6 +3,7 @@ import os
 import json
 import random
 
+from datetime import datetime
 from telebot import types,util
 
 ####### CREATE DB IF NOT EXIST ##########
@@ -207,6 +208,50 @@ def analytic(message):
         write_users()
 
 
+def save_data(data):
+    with open('warns.json', 'w') as f:
+        json.dump(data, f)
+
+def load_data():
+    try:
+        with open('warns.json', 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+
+user_warns = load_data()
+
+def warn_user(message, user_id):
+    if user_id not in user_warns:
+        user_warns[user_id] = {'warn_count': 1, 'last_warn_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+        bot.reply_to(message, f"{get_name(message)}, Ая-яй, вредим значит? Так нельзя. Пока что просто предупреждаю. Максимум 3 преда, потом - забаню.", parse_mode='HTML')
+    else:
+        user_warns[user_id]['warn_count'] += 1
+        user_warns[user_id]['last_warn_time'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        bot.reply_to(message, f"{get_name(message)}, Ты опять вредишь? Напоминаю что максимум 3 преда, потом - забаню.", parse_mode='HTML')
+
+    # Логика применения наказаний на основе warn_count
+    if user_warns[user_id]['warn_count'] >= 3:
+        bot.reply_to(message, "Я предупреждал...", parse_mode = 'HTML')
+        target = get_target(message)
+        if target:
+            bot.ban_chat_member(message.chat.id, target)
+
+
+    save_data(user_warns)
+
+def remove_warn(user_id):
+    if user_id in user_warns:
+        user_warns[user_id]['warn_count'] -= 1
+        if user_warns[user_id]['warn_count'] <= 0:
+            del user_warns[user_id]
+        save_data(user_warns)
+        return True
+    else:
+        return False
+
+
+
 #############TOKEN INIT#####
 
 
@@ -264,6 +309,32 @@ def echo_all(message):
                 return 0
         except:
             return 0
+        
+    if message.text.upper() == 'ВАРН':
+        try:
+            if have_rights(message):
+                if message.reply_to_message:
+                    user_id = message.reply_to_message.from_user.id
+                    warn_user(message, user_id)
+                else:
+                    bot.reply_to(message, "Команда должна быть ответом на сообщение нарушителя.")
+        except:
+            return 0
+        
+    if message.text.upper() == 'СНЯТЬ ВАРН':
+        try:
+            if have_rights(message):
+                if message.reply_to_message:
+                    user_id = message.reply_to_message.from_user.id
+                    if remove_warn(user_id):
+                        bot.reply_to(message, f"Ладно, {get_name(message)}, прощаю последний твой косяк.", parse_mode = 'HTML')
+                    else:
+                        bot.reply_to(message, "Этот человек очень даже хороший в моём видении.")
+                else:
+                    bot.reply_to(message, "Команда должна быть ответом на сообщение пользователя.")
+        except:
+            return 0
+
     if message.text.upper().startswith('МУТ'):
         try:
             if have_rights(message):
@@ -392,15 +463,14 @@ def echo_all(message):
 Бан/Разбан - Блокировка/разблокировка пользователя
 Кик - Изгнание пользователя
 Мут/Размут - Лишение/выдача права слова пользователю
+Варн/Снять варн - Выдача/Снятие предупреждения пользователю
 Закреп||Пин - Прикрепить сообщение
 Анпин - открепить сообщение
 Рандом a b - Случайный выбор числа в диапазоне a..b
 .Хелп - Этот список
 Пинг/Кинг/Бот - Для проверки бота
 Что с ботом? - ..)
-
 </blockquote>
-
 <blockquote expandable><b>РП-Команды</b>
 Обнять
 Поцеловать
