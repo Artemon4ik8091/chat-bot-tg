@@ -84,7 +84,7 @@ def write_la(la):
     with open('la.json', 'w') as outfile:
         outfile.write(js)
 
-####################FAST HASH#################
+####################           FAST HASH              #################
 from xxhash import xxh32
 
 # Generate fast hash
