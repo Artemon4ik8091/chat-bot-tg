@@ -447,6 +447,26 @@ def echo_all(message):
                 bot.reply_to(message, "Больше не важное, лол.. кхм... Открепил!")
         except:
             catch_error(message, e)
+
+    if message.text.upper() == '+АДМИН':
+        try:
+            if have_rights(message):
+                user_id = message.reply_to_message.from_user.id
+                chat_id = message.chat.id
+                bot.promote_chat_member(chat_id, user_id, can_manage_chat=True, can_change_info=True, can_delete_messages=True, can_restrict_members=True, can_invite_users=True, can_pin_messages=True, can_manage_video_chats=True, can_manage_voice_chats=True, can_post_stories=True, can_edit_stories=True, can_delete_stories=True)
+                bot.reply_to(message, "Теперь у этого человечка есть власть над чатом!! Бойтесь.")
+        except:
+            return 0
+        
+    if message.text.upper() == '-АДМИН':
+        try:
+            if have_rights(message):
+                user_id = message.reply_to_message.from_user.id
+                chat_id = message.chat.id
+                bot.promote_chat_member(chat_id, user_id, can_manage_chat=False, can_change_info=False, can_delete_messages=False, can_restrict_members=False, can_invite_users=False, can_pin_messages=False, can_manage_video_chats=False, can_manage_voice_chats=False, can_post_stories=False, can_edit_stories=False, can_delete_stories=False)
+                bot.reply_to(message, "Лох, понижен в должности. Теперь его можно не бояться")
+        except:
+            return 0
     
     if message.text.upper() == "-СМС":
         try:
@@ -470,6 +490,8 @@ def echo_all(message):
 .Хелп - Этот список
 Пинг/Кинг/Бот - Для проверки бота
 Что с ботом? - ..)
++чат/-чат - Открытие/закрытие чата
++админ/-админ - Выдача/снятие прав администратора пользователя
 </blockquote>
 <blockquote expandable><b>РП-Команды</b>
 Обнять
