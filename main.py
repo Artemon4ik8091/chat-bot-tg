@@ -437,7 +437,6 @@ def echo_all(message):
                 bot.pin_chat_message(message.chat.id, message.reply_to_message.id)
                 bot.reply_to(message, "Видимо это что то важное.. кхм... Закрепил!")
         except:
-            #catch_error(message, e)
             return 0
     
     if message.text.upper() == "АНПИН":
