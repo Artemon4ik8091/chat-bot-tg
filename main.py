@@ -2,8 +2,10 @@ import telebot
 import os
 import json
 import random
+import threading
+import time
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from telebot import types,util
 
 ####### CREATE DB IF NOT EXIST ##########
@@ -221,6 +223,21 @@ def load_data():
 
 user_warns = load_data()
 
+
+def save_data_stata(data):
+    with open('user_data.json', 'w') as f:
+        json.dump(data, f)
+
+def load_data_stata():
+    try:
+        with open('user_data.json', 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+
+user_data = load_data_stata()
+
+
 def warn_user(message, user_id):
     if user_id not in user_warns:
         user_warns[user_id] = {'warn_count': 1, 'last_warn_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
@@ -259,6 +276,16 @@ db = read_db()
 read_users()
 bot = telebot.TeleBot(db['token'])
 
+
+
+
+#stata_thread = threading.Thread(target=stata)
+#stata_thread.start()
+
+#@bot.message_handler(content_types=['text'])
+#def handle_text(message):
+#    stata(message)
+
 @bot.message_handler(commands=['start'])
 def start_message(message):
     bot.reply_to(message, "Привет, я недо-ирис чат бот. Фанатский форк на Python. Данный бот не имеет ничего общего с командой разработчиков оригинального телеграмм бота Iris.")
@@ -268,6 +295,35 @@ def echo_all(message):
     if message.text == 'bot?':
         username = message.from_user.first_name          #Получаем имя юзера
         bot.reply_to(message, f'Hello. I see you, {username}')
+    
+    elif message.text:
+        user_id = str(message.from_user.id)
+        date = datetime.now().strftime('%Y-%m-%d')  # Формат даты для сравнения
+
+        if user_id not in user_data:
+            user_data[user_id] = {date: 1}
+        else:
+            if date not in user_data[user_id]:
+                user_data[user_id][date] = 1
+            else:
+                user_data[user_id][date] += 1
+
+        save_data_stata(user_data)
+
+    if message.text.upper() == "ТОП НЕДЕЛЯ":
+        today = datetime.now()
+        week_ago = today - timedelta(days=7)
+        weekly_stats = {}
+
+        for user, data in user_data.items():
+            total = 0
+            for date, count in data.items():
+                if week_ago.strftime('%Y-%m-%d') <= date <= today.strftime('%Y-%m-%d'):
+                    total += count
+            weekly_stats[user] = total
+            #print (weekly_stats)
+        bot.reply_to(message, f'{str(weekly_stats)}\n\nЭта функция пока что не готова.')
+        return weekly_stats
 
     if message.text.upper() == 'ПИНГ':bot.reply_to(message, f'ПОНГ')
 
