@@ -276,16 +276,6 @@ db = read_db()
 read_users()
 bot = telebot.TeleBot(db['token'])
 
-
-
-
-#stata_thread = threading.Thread(target=stata)
-#stata_thread.start()
-
-#@bot.message_handler(content_types=['text'])
-#def handle_text(message):
-#    stata(message)
-
 @bot.message_handler(commands=['start'])
 def start_message(message):
     bot.reply_to(message, "Привет, я недо-ирис чат бот. Фанатский форк на Python. Данный бот не имеет ничего общего с командой разработчиков оригинального телеграмм бота Iris.")
@@ -321,7 +311,6 @@ def echo_all(message):
                 if week_ago.strftime('%Y-%m-%d') <= date <= today.strftime('%Y-%m-%d'):
                     total += count
             weekly_stats[user] = total
-            #print (weekly_stats)
         bot.reply_to(message, f'{str(weekly_stats)}\n\nЭта функция пока что не готова.')
         return weekly_stats
 
