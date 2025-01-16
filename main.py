@@ -2,8 +2,6 @@ import telebot
 import os
 import json
 import random
-import threading
-import time
 
 from datetime import datetime, timedelta
 from telebot import types,util
