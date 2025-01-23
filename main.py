@@ -235,6 +235,17 @@ def load_data_stata():
 
 user_data = load_data_stata()
 
+def get_weekly_stats():
+    week_ago = datetime.now() - timedelta(days=7)
+    weekly_stats = {}
+    for user_id, user_data in user_data.items():
+        total_messages = 0
+        for message in user_data["messages"]:
+            if message["timestamp"] >= int(week_ago.timestamp()):
+                total_messages += 1
+        weekly_stats[user_id] = total_messages
+    return weekly_stats
+
 
 def warn_user(message, user_id):
     if user_id not in user_warns:
@@ -265,6 +276,12 @@ def remove_warn(user_id):
     else:
         return False
 
+##
+
+
+
+##
+
 
 
 #############TOKEN INIT#####
@@ -273,6 +290,33 @@ def remove_warn(user_id):
 db = read_db()
 read_users()
 bot = telebot.TeleBot(db['token'])
+
+async def get_user_link(user_id):
+    try:
+        user = await bot.get_user(user_id)
+        return f"https://t.me/{user.username}"
+    except Exception as e:
+        print(f"Error getting user link: {e}")
+        return f"Пользователь с ID {user_id} не найден"
+
+
+##
+
+@bot.message_handler(commands=['top'])
+def handle_top_week(message):
+    weekly_stats = get_weekly_stats()
+    # Сортируем пользователей по количеству сообщений
+    sorted_stats = sorted(weekly_stats.items(), key=lambda x: x[1], reverse=True)
+
+    # Формируем ответ
+    text = "Топ-10 пользователей за последнюю неделю:\n"
+    for i, (user_id, count) in enumerate(sorted_stats[:10]):
+        text += f"{i+1}. Пользователь {user_id}: {count} сообщений\n"
+
+    bot.send_message(message.chat.id, text)
+
+
+##
 
 @bot.message_handler(commands=['start'])
 def start_message(message):
@@ -311,6 +355,15 @@ def echo_all(message):
             weekly_stats[user] = total
         bot.reply_to(message, f'{str(weekly_stats)}\n\nЭта функция пока что не готова.')
         return weekly_stats
+    
+    #if message.text.upper() == 'ТОП':
+    #        data = load_data('user_data.json.json')  # Замените 'users.json' на ваше имя файла
+    #        text = "Статистика чата:\n"
+    #        for user_id, user_data in data.items():
+    #            link = get_user_link(int(user_id))
+    #            text += f"- @{link} (ID: {user_id}): последнее сообщение {user_data['дата']}, {user_data['количество сообщений']} сообщений\n"
+    #        bot.send_message(message.chat.id, text)
+
 
     if message.text.upper() == 'ПИНГ':bot.reply_to(message, f'ПОНГ')
 
@@ -324,7 +377,7 @@ def echo_all(message):
         username = message.from_user.first_name          #Получаем имя юзера
         bot.reply_to(message, f'''Ты {username}!
                      
-                    <tg-spoiler>Функция просто ещё не реализованна полностью, извините.</tg-spoiler>
+<tg-spoiler>Функция просто ещё не реализованна полностью, извините.</tg-spoiler>
                      ''', parse_mode='HTML')
 
     if message.text.upper().startswith("РАНДОМ "):
