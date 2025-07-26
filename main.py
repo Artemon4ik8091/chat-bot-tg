@@ -64,7 +64,7 @@ def catch_error(message, e, err_type = None):
             logging.error(traceback.format_exc()) # Log error
             err = log_stream.getvalue() # Error to variable
 
-            bot.send_message(message.chat.id, 'Critical error (свяжитесь с @Justuser_31) :\n\n' + telebot.formatting.hcode(err), parse_mode='HTML')
+            bot.send_message(message.chat.id, 'Critical error (свяжитесь с @aswer_user) :\n\n' + telebot.formatting.hcode(err), parse_mode='HTML')
 
             log_stream.truncate(0) # Clear
             log_stream.seek(0) # Clear
@@ -596,7 +596,7 @@ def echo_all(message):
 Топ неделя - Топ пользователей за неделю в этом чате.
 Бан/Разбан - Блокировка/разблокировка пользователя
 Кик - Изгнание пользователя
-Мут/Размут - Лишение/выдача права слова пользователю
+Мут/Размут [2m/2h] - Лишение/выдача права слова пользователю (m - минуты, h - часы)
 Варн/Снять варн - Выдача/Снятие предупреждения пользователю
 Закреп||Пин - Прикрепить сообщение
 Анпин - открепить сообщение
