@@ -7,17 +7,18 @@ from datetime import datetime, timedelta
 from telebot import types, util
 import logging
 import traceback
-import asyncio # Импортируем asyncio, хотя для get_user_link_sync оно не нужно
+import asyncio
 
 ####### CREATE DB IF NOT EXIST ##########
 
 if not os.path.exists('db.json'):
-    db = {'token': 'None'}
+    # Добавлено 'admin_id_for_errors' со значением по умолчанию None
+    db = {'token': 'None', 'admin_id_for_errors': None}
     js = json.dumps(db, indent=2)
     with open('db.json', 'w') as outfile:
         outfile.write(js)
 
-    print('Input token in "None" (db.json)')
+    print('Введи токен в "None" и свой ID администратора в "admin_id_for_errors" (db.json)')
     exit()
 
 if not os.path.exists('users.json'):
@@ -46,7 +47,7 @@ known_errs = {
     'A request to the Telegram API was unsuccessful. Error code: 400. Description: Bad Request: not enough rights to restrict/unrestrict chat member': 'Увы, но у бота не хватает прав для этого.'
 }
 
-# Initialize log_stream for error logging
+# Инициализируем log_stream для логирования ошибок
 import io
 log_stream = io.StringIO()
 logging.basicConfig(stream=log_stream, level=logging.ERROR)
@@ -56,18 +57,35 @@ def catch_error(message, e, err_type = None):
         global log_stream, known_errs
         e = str(e)
 
-        # Check error in known_errs
+        # Проверяем ошибку в известных ошибках
         print(e)
         if e in known_errs:
+            # Отправляем известные ошибки в чат, где произошла ошибка
             bot.send_message(message.chat.id, known_errs[e])
         else:
-            logging.error(traceback.format_exc()) # Log error
-            err = log_stream.getvalue() # Error to variable
+            logging.error(traceback.format_exc()) # Логируем ошибку
+            err = log_stream.getvalue() # Ошибка в переменную
 
-            bot.send_message(message.chat.id, 'Critical error (свяжитесь с @aswer_user) :\n\n' + telebot.formatting.hcode(err), parse_mode='HTML')
+            # Читаем db для admin_id_for_errors
+            db_config = read_db()
+            admin_id = db_config.get('admin_id_for_errors')
 
-            log_stream.truncate(0) # Clear
-            log_stream.seek(0) # Clear
+            if admin_id:
+                try:
+                    # Отправляем критическую ошибку указанному ID администратора
+                    bot.send_message(admin_id, 'Критическая ошибка (свяжитесь с @aswer_user) :\n\n' + telebot.formatting.hcode(err), parse_mode='HTML')
+                    # Опционально, уведомляем чат, что произошла ошибка и она была сообщена
+                    bot.send_message(message.chat.id, 'Произошла критическая ошибка. Информация отправлена администратору.')
+                except Exception as send_e:
+                    # Если отправка администратору не удалась (например, бот не начал чат с администратором)
+                    print(f"Не удалось отправить ошибку администратору с ID {admin_id}: {send_e}")
+                    bot.send_message(message.chat.id, 'Критическая ошибка (свяжитесь с @aswer_user) :\n\n' + telebot.formatting.hcode(err), parse_mode='HTML')
+            else:
+                # Если admin_id не установлен, отправляем в чат, где произошла ошибка
+                bot.send_message(message.chat.id, 'Критическая ошибка (свяжитесь с @aswer_user) :\n\n' + telebot.formatting.hcode(err), parse_mode='HTML')
+
+            log_stream.truncate(0) # Очищаем
+            log_stream.seek(0) # Сбрасываем указатель
     elif err_type == 'no_user':
         bot.send_message(message.chat.id, 'Так.. а кому это адресованно то, глупый админ?')
 
@@ -312,14 +330,14 @@ def handle_top_day(message):
     daily_stats = get_daily_stats(chat_id)
     sorted_stats = sorted(daily_stats.items(), key=lambda x: x[1], reverse=True)
 
-    text = "Топ пользователей за сегодня:\n" # Changed text to reflect "all users"
+    text = "Топ пользователей за сегодня:\n"
     if not sorted_stats:
         text = "Статистика за сегодня пока пуста."
     else:
-        for i, (user_id, count) in enumerate(sorted_stats): # Removed [:10]
+        for i, (user_id, count) in enumerate(sorted_stats):
             user_link = get_user_link_sync(int(user_id), message.chat.id)
             text += f"{i+1}. {user_link}: {count} сообщений\n"
-    
+
     bot.send_message(message.chat.id, text, parse_mode='HTML')
 
 
@@ -330,14 +348,14 @@ def handle_top_week(message):
     weekly_stats = get_weekly_stats(chat_id)
     sorted_stats = sorted(weekly_stats.items(), key=lambda x: x[1], reverse=True)
 
-    text = "Топ пользователей за последнюю неделю:\n" # Changed text to reflect "all users"
+    text = "Топ пользователей за последнюю неделю:\n"
     if not sorted_stats:
         text = "Статистика за неделю пока пуста."
     else:
-        for i, (user_id, count) in enumerate(sorted_stats): # Removed [:10]
+        for i, (user_id, count) in enumerate(sorted_stats):
             user_link = get_user_link_sync(int(user_id), message.chat.id)
             text += f"{i+1}. {user_link}: {count} сообщений\n"
-            
+
     bot.send_message(message.chat.id, text, parse_mode='HTML')
 
 ##
@@ -348,8 +366,8 @@ def start_message(message):
 
 @bot.message_handler(func=lambda message: True)
 def echo_all(message):
-    # Update message count for the user in the specific chat
-    if message.text: # Only count text messages for simplicity
+    # Обновляем счетчик сообщений для пользователя в конкретном чате
+    if message.text: # Считаем только текстовые сообщения для простоты
         chat_id = str(message.chat.id)
         user_id = str(message.from_user.id)
         date = datetime.now().strftime('%Y-%m-%d')
@@ -362,25 +380,13 @@ def echo_all(message):
             user_data[chat_id][user_id][date] = 1
         else:
             user_data[chat_id][user_id][date] += 1
-        
+
         save_data(user_data, 'user_data.json')
 
 
     if message.text == 'bot?':
-        username = message.from_user.first_name          #Получаем имя юзера
+        username = message.from_user.first_name
         bot.reply_to(message, f'Hello. I see you, {username}')
-    
-    # Removed the old "ТОП НЕДЕЛЯ" handling here as it's replaced by /top_week command
-    # and the inline check for message.text.upper() == "ТОП НЕДЕЛЯ" is no longer needed.
-    
-    #if message.text.upper() == 'ТОП':
-    #        data = load_data('user_data.json.json')  # Замените 'users.json' на ваше имя файла
-    #        text = "Статистика чата:\n"
-    #        for user_id, user_data in data.items():
-    #            link = get_user_link(int(user_id))
-    #            text += f"- @{link} (ID: {user_id}): последнее сообщение {user_data['дата']}, {user_data['количество сообщений']} сообщений\n"
-    #        bot.send_message(message.chat.id, text)
-
 
     if message.text.upper() == 'ПИНГ':bot.reply_to(message, f'ПОНГ')
 
@@ -391,9 +397,9 @@ def echo_all(message):
     if message.text.upper().startswith("ЧТО С БОТОМ"): bot.reply_to(message, f'Да тут я.. отойти даже нельзя блин.. Я ТОЖЕ ИМЕЮ ПРАВО НА ОТДЫХ!')
 
     if message.text.upper() == 'КТО Я':
-        username = message.from_user.first_name          #Получаем имя юзера
+        username = message.from_user.first_name
         bot.reply_to(message, f'''Ты {username}!
-                     
+
 <tg-spoiler>Функция просто ещё не реализованна полностью, извините.</tg-spoiler>
                      ''', parse_mode='HTML')
 
@@ -422,7 +428,7 @@ def echo_all(message):
                 return 0
         except:
             return 0
-        
+
     if message.text.upper() == 'ВАРН':
         try:
             if have_rights(message):
@@ -433,7 +439,7 @@ def echo_all(message):
                     bot.reply_to(message, "Команда должна быть ответом на сообщение нарушителя.")
         except:
             return 0
-        
+
     if message.text.upper() == 'СНЯТЬ ВАРН':
         try:
             if have_rights(message):
@@ -551,13 +557,13 @@ def echo_all(message):
                 bot.reply_to(message, "Видимо это что то важное.. кхм... Закрепил!")
         except:
             return 0
-    
+
     if message.text.upper() == "АНПИН":
         try:
             if have_rights(message):
                 bot.unpin_chat_message(message.chat.id, message.reply_to_message.id)
                 bot.reply_to(message, "Больше не важное, лол.. кхм... Открепил!")
-        except Exception as e: # Added 'e' to the except clause to catch the exception
+        except Exception as e:
             catch_error(message, e)
 
     if message.text.upper() == '+АДМИН':
@@ -569,7 +575,7 @@ def echo_all(message):
                 bot.reply_to(message, "Теперь у этого человечка есть власть над чатом!! Бойтесь.")
         except:
             return 0
-        
+
     if message.text.upper() == '-АДМИН':
         try:
             if have_rights(message):
@@ -579,7 +585,7 @@ def echo_all(message):
                 bot.reply_to(message, "Лох, понижен в должности. Теперь его можно не бояться")
         except:
             return 0
-    
+
     if message.text.upper() == "-СМС":
         try:
             if have_rights(message):
@@ -662,10 +668,10 @@ def echo_all(message):
 Выпороть
 Закопать
 Выпить
-Мой/Моя 
+Мой/Моя
 Обнять всех
 Наказать</blockquote>''', parse_mode='HTML')
-    
+
 ##############       RP COMMANDS        #################
 
     if message.text.upper() == 'ОБНЯТЬ':
@@ -695,35 +701,35 @@ def echo_all(message):
             bot.reply_to(message, f'{username} погладил {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'ПОЗДРАВИТЬ':
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} поздравил {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'ПРИЖАТЬ':
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} прижал к стеночке {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'ПНУТЬ':
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} пнул {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'РАССТРЕЛЯТЬ':
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} расстрелял {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'МОЙ':
         username = message.from_user.first_name
         try:
@@ -744,42 +750,42 @@ def echo_all(message):
             bot.reply_to(message, f'{username} покормил {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'ПОТРОГАТЬ':
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} потрогал {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'ИСПУГАТЬ':
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} испугал {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'ИЗНАСИЛОВАТЬ':
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} изнасиловал {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'ОТДАТЬСЯ':
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} полностью отдался {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'ОТРАВИТЬ':
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} отравил {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'УДАРИТЬ':
         username = message.from_user.first_name
         rand = random.randint(1, 5)
@@ -797,21 +803,21 @@ def echo_all(message):
             bot.reply_to(message, f'{username} ударил {work} {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'УБИТЬ':
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} жестоко убил {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'ПОНЮХАТЬ':
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} понюхал {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'КАСТРИРОВАТЬ':
         username = message.from_user.first_name
         try:
@@ -825,7 +831,7 @@ def echo_all(message):
             bot.reply_to(message, f'{username} забрал в рабство {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'ПОЖАТЬ РУКУ':
         username = message.from_user.first_name
         try:
@@ -854,28 +860,28 @@ def echo_all(message):
             bot.reply_to(message, f'{username} отсосал у {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'ВЫЕБАТЬ':
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} выебал {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'ИЗВИНИТЬСЯ':
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} извинился перед {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'ЛИЗНУТЬ':
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} лизнул {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'ШЛЁПНУТЬ':
         username = message.from_user.first_name
         try:
@@ -889,35 +895,35 @@ def echo_all(message):
             bot.reply_to(message, f'{username} послал куда подальше {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'ПОХВАЛИТЬ':
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} похвалил {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'СЖЕЧЬ':
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} сжёг до тла {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'ТРАХНУТЬ':
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} трахнул {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'УЩИПНУТЬ':
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} ущипнул {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'УЕБАТЬ':
         username = message.from_user.first_name
         rand = random.randint(1, 5)
@@ -935,7 +941,7 @@ def echo_all(message):
             bot.reply_to(message, f'{username} уебал {work} {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'ЗАПИСАТЬ НА НОГОТОЧКИ':
         username = message.from_user.first_name
         try:
@@ -949,35 +955,35 @@ def echo_all(message):
             bot.reply_to(message, f'{username} уеденился с {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'СВЯЗАТЬ':
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} связал {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'ЗАСТАВИТЬ':
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} заставил {get_name(message)} выполнить действие', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'ПОВЕСИТЬ':
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} повесил {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'УНИЧТОЖИТЬ':
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} низвёл до атомов {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'ПРОДАТЬ':
         username = message.from_user.first_name
         try:
@@ -991,49 +997,49 @@ def echo_all(message):
             bot.reply_to(message, f'{username} защекотал до истерики {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'ВЗОРВАТЬ':
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} взорвал на кусочки {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'ШМАЛЬНУТЬ':
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} далеко шмальнул {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'ЗАСОСАТЬ':
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} оставил засос у {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'ЛЕЧЬ':
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} лёг с {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'УНИЗИТЬ':
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} унизил {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'АРЕСТОВАТЬ':
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} арестовал {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'НАОРАТЬ':
         username = message.from_user.first_name
         try:
@@ -1047,14 +1053,14 @@ def echo_all(message):
             bot.reply_to(message, f'Юморист {username} рассмешил {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'УШАТАТЬ':
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} ушатал {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'ПОРВАТЬ':
         username = message.from_user.first_name
         try:
@@ -1068,7 +1074,7 @@ def echo_all(message):
             bot.reply_to(message, f'{username} выкопал {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'ВЫПОРОТЬ':
         username = message.from_user.first_name
         try:
@@ -1082,14 +1088,14 @@ def echo_all(message):
             bot.reply_to(message, f'{username} закопал {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'ВЫПИТЬ':
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} выпил с {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
-        
+
     if message.text.upper() == 'НАКАЗАТЬ':
         username = message.from_user.first_name
         try:
