@@ -395,6 +395,45 @@ def get_user_link_sync(user_id, chat_id):
         print(f"Error getting user link for ID {user_id} in chat {chat_id}: {e}")
         return f"Пользователь {user_id}"
 
+# НОВАЯ ФУНКЦИЯ: Форматирование времени в "X минут/часов назад"
+def format_time_ago(datetime_str):
+    if not datetime_str:
+        return "Нет данных"
+    try:
+        last_activity_dt = datetime.strptime(datetime_str, '%Y-%m-%d %H:%M:%S')
+        now = datetime.now()
+        delta = now - last_activity_dt
+
+        if delta.total_seconds() < 60:
+            return "только что"
+        elif delta.total_seconds() < 3600:
+            minutes = int(delta.total_seconds() / 60)
+            if minutes == 1:
+                return f"{minutes} минуту назад"
+            elif 2 <= minutes <= 4:
+                return f"{minutes} минуты назад"
+            else:
+                return f"{minutes} минут назад"
+        elif delta.total_seconds() < 86400: # 24 часа
+            hours = int(delta.total_seconds() / 3600)
+            if hours == 1:
+                return f"{hours} час назад"
+            elif 2 <= hours <= 4:
+                return f"{hours} часа назад"
+            else:
+                return f"{hours} часов назад"
+        else:
+            days = delta.days
+            if days == 1:
+                return f"{days} день назад"
+            elif 2 <= days <= 4:
+                return f"{days} дня назад"
+            else:
+                return f"{days} дней назад"
+    except Exception as e:
+        print(f"Ошибка при форматировании времени: {e}")
+        return "Неизвестно"
+
 
 ## Changed from @bot.message_handler(commands=['top_day'])
 @bot.message_handler(func=lambda message: message.text and message.text.upper() in ['ТОП ДЕНЬ', 'ТОП ДНЯ'])
@@ -498,8 +537,9 @@ def echo_all(message):
         else: #
             user_data[chat_id][user_id]['stats'][date] += 1 #
         
-        # Обновляем время последней активности
-        user_data[chat_id][user_id]['last_activity'] = current_time #
+        # Обновляем время последней активности, исключая команду "КТО Я"
+        if message.text.upper() != 'КТО Я': # НОВОЕ УСЛОВИЕ
+            user_data[chat_id][user_id]['last_activity'] = current_time #
 
         save_data(user_data, 'user_data.json') #
 
@@ -529,8 +569,8 @@ def echo_all(message):
 
         last_active_time = "Нет данных" #
         if chat_id in user_data and user_id in user_data[chat_id] and 'last_activity' in user_data[chat_id][user_id]: #
-            last_active_time = user_data[chat_id][user_id]['last_activity'] #
-
+            last_active_time = format_time_ago(user_data[chat_id][user_id]['last_activity']) # Используем новую функцию
+            
         # Формируем ответ
         reply_text = ( #
             f"Ты <b>{username}</b>\n\n" #
@@ -594,7 +634,7 @@ def echo_all(message):
 
                 last_active_time = "Нет данных"
                 if chat_id in user_data and target_user_id in user_data[chat_id] and 'last_activity' in user_data[chat_id][target_user_id]:
-                    last_active_time = user_data[chat_id][target_user_id]['last_activity']
+                    last_active_time = format_time_ago(user_data[chat_id][target_user_id]['last_activity']) # Используем новую функцию
 
                 reply_text = (
                     f"Это <b>{target_user_name}</b>\n\n"
