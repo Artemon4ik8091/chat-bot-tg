@@ -250,31 +250,91 @@ def load_data(filename='warns.json'):
 user_warns = load_data('warns.json')
 
 # Modified user_data structure: {chat_id: {user_id: {date: message_count}}}
-user_data = load_data('user_data.json')
+# Добавлено поле 'last_activity' для хранения времени последней активности пользователя
+# user_data = {chat_id: {user_id: {'stats': {date: message_count}, 'last_activity': timestamp}}}
+user_data = load_data('user_data.json') #
+
+# Новые функции для получения статистики конкретного пользователя
+def get_user_daily_stats(chat_id, user_id):
+    today = datetime.now().strftime('%Y-%m-%d')
+    if str(chat_id) in user_data and str(user_id) in user_data[str(chat_id)] and 'stats' in user_data[str(chat_id)][str(user_id)]:
+        return user_data[str(chat_id)][str(user_id)]['stats'].get(today, 0) #
+    return 0 #
+
+def get_user_weekly_stats(chat_id, user_id):
+    week_ago = datetime.now() - timedelta(days=7)
+    total_messages = 0
+    if str(chat_id) in user_data and str(user_id) in user_data[str(chat_id)] and 'stats' in user_data[str(chat_id)][str(user_id)]:
+        for date_str, count in user_data[str(chat_id)][str(user_id)]['stats'].items(): #
+            date_obj = datetime.strptime(date_str, '%Y-%m-%d') #
+            if date_obj >= week_ago: #
+                total_messages += count #
+    return total_messages #
+
+def get_user_monthly_stats(chat_id, user_id):
+    month_ago = datetime.now() - timedelta(days=30) # Приближенно 30 дней для месяца
+    total_messages = 0
+    if str(chat_id) in user_data and str(user_id) in user_data[str(chat_id)] and 'stats' in user_data[str(chat_id)][str(user_id)]:
+        for date_str, count in user_data[str(chat_id)][str(user_id)]['stats'].items(): #
+            date_obj = datetime.strptime(date_str, '%Y-%m-%d') #
+            if date_obj >= month_ago: #
+                total_messages += count #
+    return total_messages #
+
+def get_user_all_time_stats(chat_id, user_id):
+    if str(chat_id) in user_data and str(user_id) in user_data[str(chat_id)] and 'stats' in user_data[str(chat_id)][str(user_id)]:
+        return sum(user_data[str(chat_id)][str(user_id)]['stats'].values()) #
+    return 0 #
 
 def get_daily_stats(chat_id):
     today = datetime.now().strftime('%Y-%m-%d')
     daily_stats = {}
     if str(chat_id) in user_data:
-        for user_id, dates in user_data[str(chat_id)].items():
-            if today in dates:
-                daily_stats[user_id] = dates[today]
+        for user_id, user_info in user_data[str(chat_id)].items(): #
+            if 'stats' in user_info and today in user_info['stats']: #
+                daily_stats[user_id] = user_info['stats'][today] #
     return daily_stats
 
 def get_weekly_stats(chat_id):
     week_ago = datetime.now() - timedelta(days=7)
     weekly_stats = {}
     if str(chat_id) in user_data:
-        for user_id, dates in user_data[str(chat_id)].items():
+        for user_id, user_info in user_data[str(chat_id)].items(): #
             total_messages = 0
-            for date_str, count in dates.items():
-                date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-                if date_obj >= week_ago:
-                    total_messages += count
+            if 'stats' in user_info: #
+                for date_str, count in user_info['stats'].items(): #
+                    date_obj = datetime.strptime(date_str, '%Y-%m-%d') #
+                    if date_obj >= week_ago: #
+                        total_messages += count #
             if total_messages > 0:
                 weekly_stats[user_id] = total_messages
     return weekly_stats
 
+def get_monthly_stats(chat_id):
+    month_ago = datetime.now() - timedelta(days=30) # Приближенно 30 дней для месяца
+    monthly_stats = {}
+    if str(chat_id) in user_data:
+        for user_id, user_info in user_data[str(chat_id)].items(): #
+            total_messages = 0
+            if 'stats' in user_info: #
+                for date_str, count in user_info['stats'].items(): #
+                    date_obj = datetime.strptime(date_str, '%Y-%m-%d') #
+                    if date_obj >= month_ago: #
+                        total_messages += count #
+            if total_messages > 0:
+                monthly_stats[user_id] = total_messages
+    return monthly_stats
+
+def get_all_time_stats(chat_id):
+    all_time_stats = {}
+    if str(chat_id) in user_data:
+        for user_id, user_info in user_data[str(chat_id)].items(): #
+            total_messages = 0
+            if 'stats' in user_info: #
+                total_messages = sum(user_info['stats'].values()) #
+            if total_messages > 0:
+                all_time_stats[user_id] = total_messages
+    return all_time_stats
 
 def warn_user(message, user_id):
     if user_id not in user_warns:
@@ -324,38 +384,78 @@ def get_user_link_sync(user_id, chat_id):
 
 
 ## Changed from @bot.message_handler(commands=['top_day'])
-@bot.message_handler(func=lambda message: message.text and message.text.upper() == 'ТОП ДЕНЬ')
+@bot.message_handler(func=lambda message: message.text and message.text.upper() in ['ТОП ДЕНЬ', 'ТОП ДНЯ'])
 def handle_top_day(message):
     chat_id = str(message.chat.id)
     daily_stats = get_daily_stats(chat_id)
     sorted_stats = sorted(daily_stats.items(), key=lambda x: x[1], reverse=True)
 
     text = "Топ пользователей за сегодня:\n"
+    total_messages_chat = 0
     if not sorted_stats:
         text = "Статистика за сегодня пока пуста."
     else:
         for i, (user_id, count) in enumerate(sorted_stats):
             user_link = get_user_link_sync(int(user_id), message.chat.id)
             text += f"{i+1}. {user_link}: {count} сообщений\n"
-
+            total_messages_chat += count
+    text += f"\nВсего сообщений в чате за сегодня: {total_messages_chat}"
     bot.send_message(message.chat.id, text, parse_mode='HTML')
 
 
 ## Changed from @bot.message_handler(commands=['top_week'])
-@bot.message_handler(func=lambda message: message.text and message.text.upper() == 'ТОП НЕДЕЛЯ')
+@bot.message_handler(func=lambda message: message.text and message.text.upper() in ['ТОП НЕДЕЛЯ', 'ТОП НЕДЕЛИ'])
 def handle_top_week(message):
     chat_id = str(message.chat.id)
     weekly_stats = get_weekly_stats(chat_id)
     sorted_stats = sorted(weekly_stats.items(), key=lambda x: x[1], reverse=True)
 
     text = "Топ пользователей за последнюю неделю:\n"
+    total_messages_chat = 0
     if not sorted_stats:
         text = "Статистика за неделю пока пуста."
     else:
         for i, (user_id, count) in enumerate(sorted_stats):
             user_link = get_user_link_sync(int(user_id), message.chat.id)
             text += f"{i+1}. {user_link}: {count} сообщений\n"
+            total_messages_chat += count
+    text += f"\nВсего сообщений в чате за неделю: {total_messages_chat}"
+    bot.send_message(message.chat.id, text, parse_mode='HTML')
 
+@bot.message_handler(func=lambda message: message.text and message.text.upper() in ['ТОП МЕСЯЦ', 'ТОП МЕСЯЦА'])
+def handle_top_month(message):
+    chat_id = str(message.chat.id)
+    monthly_stats = get_monthly_stats(chat_id)
+    sorted_stats = sorted(monthly_stats.items(), key=lambda x: x[1], reverse=True)
+
+    text = "Топ пользователей за последний месяц:\n"
+    total_messages_chat = 0
+    if not sorted_stats:
+        text = "Статистика за месяц пока пуста."
+    else:
+        for i, (user_id, count) in enumerate(sorted_stats):
+            user_link = get_user_link_sync(int(user_id), message.chat.id)
+            text += f"{i+1}. {user_link}: {count} сообщений\n"
+            total_messages_chat += count
+    text += f"\nВсего сообщений в чате за месяц: {total_messages_chat}"
+    bot.send_message(message.chat.id, text, parse_mode='HTML')
+
+@bot.message_handler(func=lambda message: message.text and message.text.upper() in ['ТОП ВСЕ', 'ТОП ВСЯ'])
+def handle_top_all_time(message):
+    chat_id = str(message.chat.id)
+    all_time_stats = get_all_time_stats(chat_id)
+    sorted_stats = sorted(all_time_stats.items(), key=lambda x: x[1], reverse=True)
+
+    text = "Топ пользователей за все время:\n"
+    total_messages_chat = 0
+    if not sorted_stats:
+        text = "Статистика за все время пока пуста."
+    else:
+        for i, (user_id, count) in enumerate(sorted_stats):
+            user_link = get_user_link_sync(int(user_id), message.chat.id)
+            text += f"{i+1}. {user_link}: {count} сообщений\n"
+            total_messages_chat += count
+    text += f"\nВсего сообщений в чате за все время: {total_messages_chat}"
     bot.send_message(message.chat.id, text, parse_mode='HTML')
 
 ##
@@ -366,22 +466,28 @@ def start_message(message):
 
 @bot.message_handler(func=lambda message: True)
 def echo_all(message):
-    # Обновляем счетчик сообщений для пользователя в конкретном чате
+    # Обновляем счетчик сообщений для пользователя в конкретном чате и время последней активности
     if message.text: # Считаем только текстовые сообщения для простоты
-        chat_id = str(message.chat.id)
-        user_id = str(message.from_user.id)
-        date = datetime.now().strftime('%Y-%m-%d')
+        chat_id = str(message.chat.id) #
+        user_id = str(message.from_user.id) #
+        date = datetime.now().strftime('%Y-%m-%d') #
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S') #
 
-        if chat_id not in user_data:
-            user_data[chat_id] = {}
-        if user_id not in user_data[chat_id]:
-            user_data[chat_id][user_id] = {}
-        if date not in user_data[chat_id][user_id]:
-            user_data[chat_id][user_id][date] = 1
-        else:
-            user_data[chat_id][user_id][date] += 1
+        if chat_id not in user_data: #
+            user_data[chat_id] = {} #
+        if user_id not in user_data[chat_id]: #
+            user_data[chat_id][user_id] = {'stats': {}, 'last_activity': ''} #
+        
+        # Обновляем статистику сообщений
+        if date not in user_data[chat_id][user_id]['stats']: #
+            user_data[chat_id][user_id]['stats'][date] = 1 #
+        else: #
+            user_data[chat_id][user_id]['stats'][date] += 1 #
+        
+        # Обновляем время последней активности
+        user_data[chat_id][user_id]['last_activity'] = current_time #
 
-        save_data(user_data, 'user_data.json')
+        save_data(user_data, 'user_data.json') #
 
 
     if message.text == 'bot?':
@@ -397,11 +503,27 @@ def echo_all(message):
     if message.text.upper().startswith("ЧТО С БОТОМ"): bot.reply_to(message, f'Да тут я.. отойти даже нельзя блин.. Я ТОЖЕ ИМЕЮ ПРАВО НА ОТДЫХ!')
 
     if message.text.upper() == 'КТО Я':
-        username = message.from_user.first_name
-        bot.reply_to(message, f'''Ты {username}!
+        user_id = str(message.from_user.id) #
+        chat_id = str(message.chat.id) #
+        username = message.from_user.first_name #
 
-<tg-spoiler>Функция просто ещё не реализованна полностью, извините.</tg-spoiler>
-                     ''', parse_mode='HTML')
+        # Получаем статистику для текущего пользователя
+        daily_count = get_user_daily_stats(chat_id, user_id) #
+        weekly_count = get_user_weekly_stats(chat_id, user_id) #
+        monthly_count = get_user_monthly_stats(chat_id, user_id) #
+        all_time_count = get_user_all_time_stats(chat_id, user_id) #
+
+        last_active_time = "Нет данных" #
+        if chat_id in user_data and user_id in user_data[chat_id] and 'last_activity' in user_data[chat_id][user_id]: #
+            last_active_time = user_data[chat_id][user_id]['last_activity'] #
+
+        # Формируем ответ
+        reply_text = ( #
+            f"Ты <b>{username}</b>\n\n" #
+            f"Последний твой актив:\n{last_active_time}\n" #
+            f"Краткая стата (д|н|м|вся):\n{daily_count}|{weekly_count}|{monthly_count}|{all_time_count}" #
+        ) #
+        bot.reply_to(message, reply_text, parse_mode='HTML') #
 
     if message.text.upper().startswith("РАНДОМ "):
         try:
@@ -538,7 +660,7 @@ def echo_all(message):
                 bot.set_chat_permissions(message.chat.id, telebot.types.ChatPermissions(can_send_messages=False, can_send_other_messages = False, can_send_polls = False))
                 bot.reply_to(message, 'Крч вы достали админов господа.. и меня тоже. Закрываем чат..)')
             else:
-                bot.reply_to(message, f'А, ещё.. <tg-spoiler>ПОПЛАЧЬ)))))</tg-spoiler>', parse_mode='HTML')
+                bot.reply_to(message, f'А, ещё.. <tg-spoiler>ПОПЛАЧ)))))</tg-spoiler>', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
 
@@ -598,8 +720,10 @@ def echo_all(message):
         bot.reply_to(message, '''Помощь по командам:
 
 <blockquote expandable><b>Основные команды бота</b>
-Топ день - Топ пользователей за день в этом чате.
-Топ неделя - Топ пользователей за неделю в этом чате.
+Топ день / Топ дня - Топ пользователей за день в этом чате.
+Топ неделя / Топ недели - Топ пользователей за неделю в этом чате.
+Топ месяц / Топ месяца - Топ пользователей за месяц в этом чате.
+Топ все / Топ вся - Топ пользователей за все время в этом чате.
 Бан/Разбан - Блокировка/разблокировка пользователя
 Кик - Изгнание пользователя
 Мут/Размут [2m/2h] - Лишение/выдача права слова пользователю (m - минуты, h - часы)
@@ -977,7 +1101,7 @@ def echo_all(message):
         except Exception as e:
             catch_error(message, e)
 
-    if message.text.upper() == 'УНИЧТОЖИТЬ':
+    if message.text.upper() == 'УНИЧТОЖИТТЬ':
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} низвёл до атомов {get_name(message)}', parse_mode='HTML')
