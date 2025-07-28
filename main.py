@@ -18,25 +18,32 @@ if not os.path.exists('db.json'):
     with open('db.json', 'w') as outfile:
         outfile.write(js)
 
-    print('Введи токен в "None" и свой ID администратора в "admin_id_for_errors" (db.json)')
-    exit()
+    print('ВНИМАНИЕ: Файл db.json создан. Введи токен в "None" и свой ID администратора в "admin_id_for_errors" (db.json)')
+    exit() # Бот завершит работу, пока вы не отредактируете db.json
+else:
+    print('DEBUG: Файл db.json существует.') # Добавлено отладочное сообщение
 
 if not os.path.exists('users.json'):
         users = {}
         js = json.dumps(users, indent=2)
         with open('users.json', 'w') as outfile:
                 outfile.write(js)
+        print('DEBUG: Файл users.json создан.') # Добавлено отладочное сообщение
 
 if not os.path.exists('la.json'):
         la = {}
         js = json.dumps(la, indent=2)
         with open('la.json', 'w') as outfile:
                 outfile.write(js)
+        print('DEBUG: Файл la.json создан.') # Добавлено отладочное сообщение
+
 ############ WORK WITH DBs ##########
 
 def read_db():
+    print('DEBUG: Чтение db.json...') # Добавлено отладочное сообщение
     with open('db.json', 'r') as openfile:
         db = json.load(openfile)
+        print(f"DEBUG: Прочитанный токен: {db.get('token', 'Токен не найден')}") # Добавлено отладочное сообщение для токена
         return db
 def write_db(db):
     js = json.dumps(db, indent=2)
@@ -227,13 +234,17 @@ def analytic(message):
     global users
     read_users()
 
-    if key_by_value(users, message.from_user.id) == message.from_user.username:
-        pass
-    elif message.from_user.username == 'None':
-        pass
-    else:
-        users[sha(message.from_user.username)] = message.from_user.id
-        write_users()
+    current_user_id = message.from_user.id
+    current_username = message.from_user.username
+
+    if current_username is None:
+        return
+
+    # Приводим юзернейм к нижнему регистру перед хешированием
+    hashed_current_username = sha(current_username.lower())
+
+    users[hashed_current_username] = current_user_id
+    write_users()
 
 
 def save_data(data, filename='warns.json'):
@@ -369,7 +380,9 @@ def remove_warn(user_id):
 
 db = read_db()
 read_users()
+print('DEBUG: Инициализация бота...') # Добавлено отладочное сообщение
 bot = telebot.TeleBot(db['token'])
+print('DEBUG: Бот успешно инициализирован. Запуск polling...') # Добавлено отладочное сообщение
 
 # Synchronous version of get_user_link
 # It's better to use telebot.util.user_link directly if you have the User object
@@ -466,6 +479,7 @@ def start_message(message):
 
 @bot.message_handler(func=lambda message: True)
 def echo_all(message):
+    analytic(message)
     # Обновляем счетчик сообщений для пользователя в конкретном чате и время последней активности
     if message.text: # Считаем только текстовые сообщения для простоты
         chat_id = str(message.chat.id) #
@@ -524,6 +538,76 @@ def echo_all(message):
             f"Краткая стата (д|н|м|вся):\n{daily_count}|{weekly_count}|{monthly_count}|{all_time_count}" #
         ) #
         bot.reply_to(message, reply_text, parse_mode='HTML') #
+
+    if message.text.upper().startswith('КТО ТЫ'):
+        try:
+            target_user_id = None
+            target_user_name = None
+
+            if message.reply_to_message:
+                target_user_id = str(message.reply_to_message.from_user.id)
+                target_user_name = telebot.util.user_link(message.reply_to_message.from_user)
+            else:
+                spl = message.text.split()
+                if len(spl) > 2 and spl[2][0] == '@': # Ожидаем "КТО ТЫ @username"
+                    username_from_command = spl[2][1:] # Убираем '@'
+                    # Приводим юзернейм из команды к нижнему регистру перед хешированием
+                    hashed_username = sha(username_from_command.lower())
+                    read_users()
+                    if hashed_username in users:
+                        target_user_id = str(users[hashed_username])
+                        try:
+                            member = bot.get_chat_member(message.chat.id, int(target_user_id))
+                            target_user_name = telebot.util.user_link(member.user)
+                        except Exception:
+                            target_user_name = f"@{username_from_command}"
+                    else:
+                        bot.reply_to(message, "Пользователь с таким юзернеймом не найден в моей базе.")
+                        return
+                elif len(spl) > 1 and spl[1][0] == '@': # Ожидаем "КТО @username" (для гибкости)
+                    username_from_command = spl[1][1:] # Убираем '@'
+                    # Приводим юзернейм из команды к нижнему регистру перед хешированием
+                    hashed_username = sha(username_from_command.lower())
+                    read_users()
+                    if hashed_username in users:
+                        target_user_id = str(users[hashed_username])
+                        try:
+                            member = bot.get_chat_member(message.chat.id, int(target_user_id))
+                            target_user_name = telebot.util.user_link(member.user)
+                        except Exception:
+                            target_user_name = f"@{username_from_command}"
+                    else:
+                        bot.reply_to(message, "Пользователь с таким юзернеймом не найден в моей базе.")
+                        return
+                else:
+                    bot.reply_to(message, "Для команды 'кто ты' необходимо ответить на сообщение пользователя или указать его юзернейм (например, 'кто ты @username').")
+                    return
+
+            if target_user_id and target_user_name:
+                chat_id = str(message.chat.id)
+
+                # Получаем статистику для целевого пользователя
+                daily_count = get_user_daily_stats(chat_id, target_user_id)
+                weekly_count = get_user_weekly_stats(chat_id, target_user_id)
+                monthly_count = get_user_monthly_stats(chat_id, target_user_id)
+                all_time_count = get_user_all_time_stats(chat_id, target_user_id)
+
+                last_active_time = "Нет данных"
+                if chat_id in user_data and target_user_id in user_data[chat_id] and 'last_activity' in user_data[chat_id][target_user_id]:
+                    last_active_time = user_data[chat_id][target_user_id]['last_activity']
+
+                reply_text = (
+                    f"Это <b>{target_user_name}</b>\n\n"
+                    f"Последний актив:\n{last_active_time}\n"
+                    f"Краткая стата (д|н|м|вся):\n{daily_count}|{weekly_count}|{monthly_count}|{all_time_count}"
+                )
+                bot.reply_to(message, reply_text, parse_mode='HTML')
+            else:
+                bot.reply_to(message, "Не удалось определить целевого пользователя.")
+
+        except Exception as e:
+            catch_error(message, e)
+
 
     if message.text.upper().startswith("РАНДОМ "):
         try:
@@ -724,6 +808,7 @@ def echo_all(message):
 Топ неделя / Топ недели - Топ пользователей за неделю в этом чате.
 Топ месяц / Топ месяца - Топ пользователей за месяц в этом чате.
 Топ все / Топ вся - Топ пользователей за все время в этом чате.
+Кто ты @username / reply - Показывает инфу о пользователе.
 Бан/Разбан - Блокировка/разблокировка пользователя
 Кик - Изгнание пользователя
 Мут/Размут [2m/2h] - Лишение/выдача права слова пользователю (m - минуты, h - часы)
