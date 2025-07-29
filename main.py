@@ -550,6 +550,116 @@ def echo_all(message):
 
     if message.text.upper() == 'ПИНГ':bot.reply_to(message, f'ПОНГ')
 
+    if message.text.upper() == 'ПИУ':bot.reply_to(message, f'ПАУ')
+    
+    if message.text.upper() == 'ИРИС ХУЙЛО':
+        username = message.from_user.first_name
+        rand = random.randint(1, 5)
+        if (rand == 1):
+            work = "Сам такой"
+        elif (rand == 2):
+            work = "Лэ, ты чо"
+        elif (rand == 3):
+            work = "Я тебя тоже люблю"
+        elif (rand == 4):
+            work = "бебебебебееббе"
+        elif (rand == 5):
+            work = "Та поплачь"
+        try:
+            bot.reply_to(message, f'{work}', parse_mode='HTML')
+        except Exception as e:
+            catch_error(message, e)
+
+    if message.text.upper() == 'ИРИС ЧМО':
+        username = message.from_user.first_name
+        rand = random.randint(1, 5)
+        if (rand == 1):
+            work = "Сам такой"
+        elif (rand == 2):
+            work = "Лэ, ты чо"
+        elif (rand == 3):
+            work = "Я тебя тоже люблю"
+        elif (rand == 4):
+            work = "бебебебебееббе"
+        elif (rand == 5):
+            work = "Та поплачь"
+        try:
+            bot.reply_to(message, f'{work}', parse_mode='HTML')
+        except Exception as e:
+            catch_error(message, e)
+
+    if message.text.upper() == 'ИРИС ПИДОРАС':
+        username = message.from_user.first_name
+        rand = random.randint(1, 5)
+        if (rand == 1):
+            work = "Сам такой"
+        elif (rand == 2):
+            work = "Лэ, ты чо"
+        elif (rand == 3):
+            work = "Я тебя тоже люблю"
+        elif (rand == 4):
+            work = "бебебебебееббе"
+        elif (rand == 5):
+            work = "Та поплачь"
+        try:
+            bot.reply_to(message, f'{work}', parse_mode='HTML')
+        except Exception as e:
+            catch_error(message, e)
+
+    if message.text.upper() == 'ИРИС БЛЯДЬ':
+        username = message.from_user.first_name
+        rand = random.randint(1, 5)
+        if (rand == 1):
+            work = "Сам такой"
+        elif (rand == 2):
+            work = "Лэ, ты чо"
+        elif (rand == 3):
+            work = "Я тебя тоже люблю"
+        elif (rand == 4):
+            work = "бебебебебееббе"
+        elif (rand == 5):
+            work = "Та поплачь"
+        try:
+            bot.reply_to(message, f'{work}', parse_mode='HTML')
+        except Exception as e:
+            catch_error(message, e)
+
+    if message.text.upper() == 'ИРИС ХУЙЛУША':
+        username = message.from_user.first_name
+        rand = random.randint(1, 5)
+        if (rand == 1):
+            work = "Сам такой"
+        elif (rand == 2):
+            work = "Лэ, ты чо"
+        elif (rand == 3):
+            work = "Я тебя тоже люблю"
+        elif (rand == 4):
+            work = "бебебебебееббе"
+        elif (rand == 5):
+            work = "Та поплачь"
+        try:
+            bot.reply_to(message, f'{work}', parse_mode='HTML')
+        except Exception as e:
+            catch_error(message, e)
+
+    if message.text.upper() == 'ИРИС ДАУН':
+        username = message.from_user.first_name
+        rand = random.randint(1, 5)
+        if (rand == 1):
+            work = "Сам такой"
+        elif (rand == 2):
+            work = "Лэ, ты чо"
+        elif (rand == 3):
+            work = "Я тебя тоже люблю"
+        elif (rand == 4):
+            work = "бебебебебееббе"
+        elif (rand == 5):
+            work = "Та поплачь"
+        try:
+            bot.reply_to(message, f'{work}', parse_mode='HTML')
+        except Exception as e:
+            catch_error(message, e)
+
     if message.text.upper() == 'КИНГ': bot.reply_to(message, f'КОНГ')
 
     if message.text.upper() == 'БОТ': bot.reply_to(message, f'✅ На месте')
