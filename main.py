@@ -1191,6 +1191,40 @@ def echo_all(message):
         except Exception as e:
             catch_error(message, e)
 
+    if message.text.upper() == 'ПОМЕРИТЬСЯ':
+        username = message.from_user.first_name
+        rand = random.randint(1, 2)
+        if (rand == 1):
+            work = "Выиграл"
+        elif (rand == 2):
+            work = "Проиграл"
+        try:
+            bot.reply_to(message, f'{username} померился хозяйством с {get_name(message)}. {work}.', parse_mode='HTML')
+        except Exception as e:
+            catch_error(message, e)
+
+    if message.text.upper() == 'ОБКОНЧАТЬ':
+        username = message.from_user.first_name
+        rand = random.randint(1, 7)
+        if (rand == 1):
+            work = "в глаз"
+        elif (rand == 2):
+            work = "в рот"
+        elif (rand == 3):
+            work = "внутрь"
+        elif (rand == 4):
+            work = "на лицо"
+        elif (rand == 5):
+            work = "на грудь"
+        elif (rand == 6):
+            work = "на попку"
+        elif (rand == 7):
+            work = "на животик"
+        try:
+            bot.reply_to(message, f'{username} смачно накончал {work} {get_name(message)}', parse_mode='HTML')
+        except Exception as e:
+            catch_error(message, e)
+
     if message.text.upper() == 'ЗАПИСАТЬ НА НОГОТОЧКИ':
         username = message.from_user.first_name
         try:
@@ -1226,7 +1260,7 @@ def echo_all(message):
         except Exception as e:
             catch_error(message, e)
 
-    if message.text.upper() == 'УНИЧТОЖИТТЬ':
+    if message.text.upper() == 'УНИЧТОЖИТЬ':
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} низвёл до атомов {get_name(message)}', parse_mode='HTML')
@@ -1324,6 +1358,27 @@ def echo_all(message):
         except Exception as e:
             catch_error(message, e)
 
+    if message.text.upper() == 'ПОДСТРИЧЬ НАЛЫСО':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'{username} подстриг налысо {get_name(message)}', parse_mode='HTML')
+        except Exception as e:
+            catch_error(message, e)
+
+    if message.text.upper() == 'ВЫЕБАТЬ МОЗГИ':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'{username} отъебал мозги {get_name(message)}', parse_mode='HTML')
+        except Exception as e:
+            catch_error(message, e)
+
+    if message.text.upper() == 'ПЕРЕЕХАТЬ':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'{username} переехал пару раз {get_name(message)}', parse_mode='HTML')
+        except Exception as e:
+            catch_error(message, e)
+
     if message.text.upper() == 'ВЫПОРОТЬ':
         username = message.from_user.first_name
         try:
@@ -1335,6 +1390,34 @@ def echo_all(message):
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} закопал {get_name(message)}', parse_mode='HTML')
+        except Exception as e:
+            catch_error(message, e)
+    
+    if message.text.upper() == 'ПОЩУПАТЬ':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'{username} тщательно пощупал {get_name(message)}', parse_mode='HTML')
+        except Exception as e:
+            catch_error(message, e)
+
+    if message.text.upper() == 'ПОДРОЧИТЬ':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'{username} вздрочнул {get_name(message)}', parse_mode='HTML')
+        except Exception as e:
+            catch_error(message, e)
+
+    if message.text.upper() == 'ПОТИСКАТЬ':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'{username} потискал {get_name(message)} за его мягкие щёчки. Милотаа..', parse_mode='HTML')
+        except Exception as e:
+            catch_error(message, e)
+
+    if message.text.upper() == 'ПОДАРИТЬ':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'{username} подарил подарок {get_name(message)}', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
 
@@ -1352,10 +1435,73 @@ def echo_all(message):
         except Exception as e:
             catch_error(message, e)
 
+    if message.text.upper() == 'ПОРВАТЬ ОЧКО':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'{username} порвал напрочь задний проход {get_name(message)}', parse_mode='HTML')
+        except Exception as e:
+            catch_error(message, e)
+
+    if message.text.upper() == 'ДОВЕСТИ ДО СКВИРТА':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'{username} довёл до мощного фонтана {get_name(message)}', parse_mode='HTML')
+        except Exception as e:
+            catch_error(message, e)
+
+    if message.text.upper() == 'НАПОИТЬ':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'{username} споил в стельку {get_name(message)}', parse_mode='HTML')
+        except Exception as e:
+            catch_error(message, e)
+
+    if message.text.upper() == 'ЦЫЦ!':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'Уууу.. {username} закрыл ротик {get_name(message)} и привязал к кроватке. Знаешь.. я не думаю что тебе что то хорошее светит.. а хотя может.. хз крч.', parse_mode='HTML')
+        except Exception as e:
+            catch_error(message, e)
+
+    if message.text.upper() == 'ЦЫЦ':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'{username} заткнул {get_name(message)} используя кляп и кинул в подвал. А нехер выделываться было.', parse_mode='HTML')
+        except Exception as e:
+            catch_error(message, e)
+
+    if message.text.upper() == 'ОТПРАВИТЬ В ДУРКУ':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'{username} отправил прямиком в диспансер {get_name(message)}. Шизоид, быстро в палату!', parse_mode='HTML')
+        except Exception as e:
+            catch_error(message, e)
+
+    if message.text.upper() == 'ОТОРВАТЬ ЧЛЕН':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'АЙ..\n\n<tg-spoiler>{username} оторвал к херам наследство у {get_name(message)}.</tg-spoiler>', parse_mode='HTML')
+        except Exception as e:
+            catch_error(message, e)
+
     if message.text.upper() == 'ОБНЯТЬ ВСЕХ':
         username = message.from_user.first_name
         try:
             bot.reply_to(message, f'{username} обнял аболютно всех в этом чате.', parse_mode='HTML')
+        except Exception as e:
+            catch_error(message, e)
+
+    if message.text.upper() == 'САМООТСОС':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'Великий одиночка {username} отсосал сам у себя от отчаяния.', parse_mode='HTML')
+        except Exception as e:
+            catch_error(message, e)
+
+    if message.text.upper() == 'ПОВЕСИТЬСЯ':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'F.', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
 
