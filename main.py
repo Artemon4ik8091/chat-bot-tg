@@ -1029,7 +1029,6 @@ def echo_all(message):
 Закопать
 Выпить
 Мой/Моя
-Обнять всех
 Наказать
 Порвать очко
 Довести до сквирта
@@ -1046,7 +1045,6 @@ def echo_all(message):
 Помериться
 Выебать мозги
 Переехать
-Повеситься
 Цыц
 Цыц!</blockquote>''', parse_mode='HTML')
 
@@ -2249,7 +2247,7 @@ def echo_all(message):
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip()
             # Формируем ответ
-            response_text = f'F.'
+            response_text = f'{username}, F.'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
