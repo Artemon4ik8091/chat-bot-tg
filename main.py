@@ -1030,7 +1030,7 @@ def echo_all(message):
 Выпить
 Мой/Моя
 Наказать
-Порвать очко
+Разорвать очко
 Довести до сквирта
 Пощупать
 Подарить
@@ -1051,19 +1051,20 @@ def echo_all(message):
 ##############       RP COMMANDS        #################
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ОБНЯТЬ\s*(.*)', message.text, re.IGNORECASE)
-        if match:
-            username = message.from_user.first_name
-            # Извлекаем фразу, которая теперь будет в оригинальном регистре
-            user_phrase = match.group(1).strip()
-            # Формируем ответ
-            response_text = f'{username} крепко обнял {get_name(message)}'
-            if user_phrase: # Добавляем фразу, только если она есть
-                response_text += f'\nСо словами: {user_phrase}'
-            try:
-                bot.reply_to(message, response_text, parse_mode='HTML')
-            except Exception as e:
-                catch_error(message, e)
+        if message.reply_to_message: # Новая проверка
+            match = re.match(r'ОБНЯТЬ\s*(.*)', message.text, re.IGNORECASE)
+            if match:
+                username = message.from_user.first_name
+                # Извлекаем фразу, которая теперь будет в оригинальном регистре
+                user_phrase = match.group(1).strip()
+                # Формируем ответ
+                response_text = f'{username} крепко обнял {get_name(message)}'
+                if user_phrase: # Добавляем фразу, только если она есть
+                    response_text += f'\nСо словами: {user_phrase}'
+                try:
+                    bot.reply_to(message, response_text, parse_mode='HTML')
+                except Exception as e:
+                    catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'ПОЦЕЛОВАТЬ\s*(.*)', message.text, re.IGNORECASE)
@@ -1170,35 +1171,19 @@ def echo_all(message):
             except Exception as e:
                 catch_error(message, e)
 
-    if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'МОЙ\s*(.*)', message.text, re.IGNORECASE)
-        if match:
-            username = message.from_user.first_name
-            # Извлекаем фразу, которая теперь будет в оригинальном регистре
-            user_phrase = match.group(1).strip()
-            # Формируем ответ
-            response_text = f'{username} зацеловал до смерти, утащил к себе и приковал к батарее {get_name(message)}'
-            if user_phrase: # Добавляем фразу, только если она есть
-                response_text += f'\nСо словами: {user_phrase}'
-            try:
-                bot.reply_to(message, response_text, parse_mode='HTML')
-            except Exception as e:
-                catch_error(message, e)
+    if message.text.upper() == 'МОЙ':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'{username} зацеловал до смерти, утащил к себе и приковал к батарее {get_name(message)}', parse_mode='HTML')
+        except Exception as e:
+            catch_error(message, e)
 
-    if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'МОЯ\s*(.*)', message.text, re.IGNORECASE)
-        if match:
-            username = message.from_user.first_name
-            # Извлекаем фразу, которая теперь будет в оригинальном регистре
-            user_phrase = match.group(1).strip()
-            # Формируем ответ
-            response_text = f'{username} зацеловал до смерти, утащил к себе и приковал к батарее {get_name(message)}'
-            if user_phrase: # Добавляем фразу, только если она есть
-                response_text += f'\nСо словами: {user_phrase}'
-            try:
-                bot.reply_to(message, response_text, parse_mode='HTML')
-            except Exception as e:
-                catch_error(message, e)
+    if message.text.upper() == 'МОЯ':
+        username = message.from_user.first_name
+        try:
+            bot.reply_to(message, f'{username} зацеловал до смерти, утащил к себе и приковал к батарее {get_name(message)}', parse_mode='HTML')
+        except Exception as e:
+            catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'ПОКОРМИТЬ\s*(.*)', message.text, re.IGNORECASE)
@@ -1941,6 +1926,21 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
+        match = re.match(r'СОЖРАТЬ\s*(.*)', message.text, re.IGNORECASE)
+        if match:
+            username = message.from_user.first_name
+            # Извлекаем фразу, которая теперь будет в оригинальном регистре
+            user_phrase = match.group(1).strip()
+            # Формируем ответ
+            response_text = f'{username} кусьн.. СОЖРАЛ НАХРЕН {get_name(message)}'
+            if user_phrase: # Добавляем фразу, только если она есть
+                response_text += f'\nСо словами: {user_phrase}'
+            try:
+                bot.reply_to(message, response_text, parse_mode='HTML')
+            except Exception as e:
+                catch_error(message, e)
+
+    if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'ПОДСТРИЧЬ НАЛЫСО\s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
@@ -2106,7 +2106,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ПОРВАТЬ ОЧКО\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'РАЗОРВАТЬ ОЧКО\s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -2203,21 +2203,6 @@ def echo_all(message):
             user_phrase = match.group(1).strip()
             # Формируем ответ
             response_text = f'АЙ..\n\n<tg-spoiler>{username} оторвал к херам наследство у {get_name(message)}.</tg-spoiler>'
-            if user_phrase: # Добавляем фразу, только если она есть
-                response_text += f'\nСо словами: {user_phrase}'
-            try:
-                bot.reply_to(message, response_text, parse_mode='HTML')
-            except Exception as e:
-                catch_error(message, e)
-
-    if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ОБНЯТЬ ВСЕХ\s*(.*)', message.text, re.IGNORECASE)
-        if match:
-            username = message.from_user.first_name
-            # Извлекаем фразу, которая теперь будет в оригинальном регистре
-            user_phrase = match.group(1).strip()
-            # Формируем ответ
-            response_text = f'{username} обнял абсолютно всех в чате'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
