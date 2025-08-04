@@ -391,7 +391,16 @@ print('DEBUG: Бот успешно инициализирован. Запуск
 def get_user_link_sync(user_id, chat_id):
     try:
         member = bot.get_chat_member(chat_id, user_id)
-        return telebot.util.user_link(member.user)
+        first_name = member.user.first_name
+        # Экранируем специальные HTML-символы для безопасности
+        first_name = first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        # Проверяем наличие юзернейма
+        if member.user.username:
+            # Формируем ссылку вида https://t.me/username с first_name в качестве текста
+            return f'<a href="https://t.me/{member.user.username}">{first_name}</a>'
+        else:
+            # Если юзернейма нет, возвращаем просто first_name без ссылки
+            return first_name
     except Exception as e:
         print(f"Error getting user link for ID {user_id} in chat {chat_id}: {e}")
         return f"Пользователь {user_id}"
@@ -453,7 +462,7 @@ def handle_top_day(message):
             text += f"{i+1}. {user_link}: {count} сообщений\n"
             total_messages_chat += count
     text += f"\nВсего сообщений в чате за сегодня: {total_messages_chat}"
-    bot.send_message(message.chat.id, text, parse_mode='HTML')
+    bot.send_message(message.chat.id, text, parse_mode='HTML', disable_web_page_preview=True)
 
 
 ## Changed from @bot.message_handler(commands=['top_week'])
@@ -473,7 +482,7 @@ def handle_top_week(message):
             text += f"{i+1}. {user_link}: {count} сообщений\n"
             total_messages_chat += count
     text += f"\nВсего сообщений в чате за неделю: {total_messages_chat}"
-    bot.send_message(message.chat.id, text, parse_mode='HTML')
+    bot.send_message(message.chat.id, text, parse_mode='HTML', disable_web_page_preview=True)
 
 @bot.message_handler(func=lambda message: message.text and message.text.upper() in ['ТОП МЕСЯЦ', 'ТОП МЕСЯЦА'])
 def handle_top_month(message):
@@ -491,7 +500,7 @@ def handle_top_month(message):
             text += f"{i+1}. {user_link}: {count} сообщений\n"
             total_messages_chat += count
     text += f"\nВсего сообщений в чате за месяц: {total_messages_chat}"
-    bot.send_message(message.chat.id, text, parse_mode='HTML')
+    bot.send_message(message.chat.id, text, parse_mode='HTML', disable_web_page_preview=True)
 
 @bot.message_handler(func=lambda message: message.text and message.text.upper() in ['ТОП ВСЕ', 'ТОП ВСЯ'])
 def handle_top_all_time(message):
@@ -509,7 +518,7 @@ def handle_top_all_time(message):
             text += f"{i+1}. {user_link}: {count} сообщений\n"
             total_messages_chat += count
     text += f"\nВсего сообщений в чате за все время: {total_messages_chat}"
-    bot.send_message(message.chat.id, text, parse_mode='HTML')
+    bot.send_message(message.chat.id, text, parse_mode='HTML', disable_web_page_preview=True)
 
 ##
 
