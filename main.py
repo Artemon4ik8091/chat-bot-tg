@@ -561,114 +561,6 @@ def echo_all(message):
     if message.text.upper() == 'ПИНГ':bot.reply_to(message, f'ПОНГ')
 
     if message.text.upper() == 'ПИУ':bot.reply_to(message, f'ПАУ')
-    
-    if message.text.upper() == 'ИРИС ХУЙЛО':
-        username = message.from_user.first_name
-        rand = random.randint(1, 5)
-        if (rand == 1):
-            work = "Сам такой"
-        elif (rand == 2):
-            work = "Лэ, ты чо"
-        elif (rand == 3):
-            work = "Я тебя тоже люблю"
-        elif (rand == 4):
-            work = "бебебебебееббе"
-        elif (rand == 5):
-            work = "Та поплачь"
-        try:
-            bot.reply_to(message, f'{work}', parse_mode='HTML')
-        except Exception as e:
-            catch_error(message, e)
-
-    if message.text.upper() == 'ИРИС ЧМО':
-        username = message.from_user.first_name
-        rand = random.randint(1, 5)
-        if (rand == 1):
-            work = "Сам такой"
-        elif (rand == 2):
-            work = "Лэ, ты чо"
-        elif (rand == 3):
-            work = "Я тебя тоже люблю"
-        elif (rand == 4):
-            work = "бебебебебееббе"
-        elif (rand == 5):
-            work = "Та поплачь"
-        try:
-            bot.reply_to(message, f'{work}', parse_mode='HTML')
-        except Exception as e:
-            catch_error(message, e)
-
-    if message.text.upper() == 'ИРИС ПИДОРАС':
-        username = message.from_user.first_name
-        rand = random.randint(1, 5)
-        if (rand == 1):
-            work = "Сам такой"
-        elif (rand == 2):
-            work = "Лэ, ты чо"
-        elif (rand == 3):
-            work = "Я тебя тоже люблю"
-        elif (rand == 4):
-            work = "бебебебебееббе"
-        elif (rand == 5):
-            work = "Та поплачь"
-        try:
-            bot.reply_to(message, f'{work}', parse_mode='HTML')
-        except Exception as e:
-            catch_error(message, e)
-
-    if message.text.upper() == 'ИРИС БЛЯДЬ':
-        username = message.from_user.first_name
-        rand = random.randint(1, 5)
-        if (rand == 1):
-            work = "Сам такой"
-        elif (rand == 2):
-            work = "Лэ, ты чо"
-        elif (rand == 3):
-            work = "Я тебя тоже люблю"
-        elif (rand == 4):
-            work = "бебебебебееббе"
-        elif (rand == 5):
-            work = "Та поплачь"
-        try:
-            bot.reply_to(message, f'{work}', parse_mode='HTML')
-        except Exception as e:
-            catch_error(message, e)
-
-    if message.text.upper() == 'ИРИС ХУЙЛУША':
-        username = message.from_user.first_name
-        rand = random.randint(1, 5)
-        if (rand == 1):
-            work = "Сам такой"
-        elif (rand == 2):
-            work = "Лэ, ты чо"
-        elif (rand == 3):
-            work = "Я тебя тоже люблю"
-        elif (rand == 4):
-            work = "бебебебебееббе"
-        elif (rand == 5):
-            work = "Та поплачь"
-        try:
-            bot.reply_to(message, f'{work}', parse_mode='HTML')
-        except Exception as e:
-            catch_error(message, e)
-
-    if message.text.upper() == 'ИРИС ДАУН':
-        username = message.from_user.first_name
-        rand = random.randint(1, 5)
-        if (rand == 1):
-            work = "Сам такой"
-        elif (rand == 2):
-            work = "Лэ, ты чо"
-        elif (rand == 3):
-            work = "Я тебя тоже люблю"
-        elif (rand == 4):
-            work = "бебебебебееббе"
-        elif (rand == 5):
-            work = "Та поплачь"
-        try:
-            bot.reply_to(message, f'{work}', parse_mode='HTML')
-        except Exception as e:
-            catch_error(message, e)
 
     if message.text.upper() == 'КИНГ': bot.reply_to(message, f'КОНГ')
 
@@ -948,7 +840,7 @@ def echo_all(message):
                 user_id = message.reply_to_message.from_user.id
                 chat_id = message.chat.id
                 bot.promote_chat_member(chat_id, user_id, can_manage_chat=False, can_change_info=False, can_delete_messages=False, can_restrict_members=False, can_invite_users=False, can_pin_messages=False, can_manage_video_chats=False, can_manage_voice_chats=False, can_post_stories=False, can_edit_stories=False, can_delete_stories=False)
-                bot.reply_to(message, "Лох, понижен в должности. Теперь его можно не бояться")
+                bot.reply_to(message, "Лох понижен в должности. Теперь его можно не бояться")
         except:
             return 0
 
