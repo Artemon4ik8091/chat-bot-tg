@@ -954,7 +954,7 @@ def echo_all(message):
 
     if message.text: # Убедимся, что сообщение не пустое
         if message.reply_to_message: # Новая проверка
-            match = re.match(r'ОБНЯТЬ\s*(.*)', message.text, re.IGNORECASE)
+            match = re.match(r'ОБНЯТЬ \s*(.*)', message.text, re.IGNORECASE)
             if match:
                 username = message.from_user.first_name
                 # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -969,7 +969,7 @@ def echo_all(message):
                     catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ПОЦЕЛОВАТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ПОЦЕЛОВАТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -984,7 +984,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ДАТЬ ПЯТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ДАТЬ ПЯТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -999,7 +999,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ПОГЛАДИТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ПОГЛАДИТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1014,7 +1014,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ПОЗДРАВИТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ПОЗДРАВИТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1029,7 +1029,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ПРИЖАТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ПРИЖАТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1044,7 +1044,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ПНУТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ПНУТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1059,7 +1059,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'РАССТРЕЛЯТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'РАССТРЕЛЯТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1088,7 +1088,7 @@ def echo_all(message):
             catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ПОКОРМИТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ПОКОРМИТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1103,7 +1103,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ПОТРОГАТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ПОТРОГАТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1118,7 +1118,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ИСПУГАТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ИСПУГАТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1133,7 +1133,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ИЗНАСИЛОВАТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ИЗНАСИЛОВАТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1148,7 +1148,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ОТДАТЬСЯ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ОТДАТЬСЯ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1163,7 +1163,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ОТРАВИТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ОТРАВИТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1178,7 +1178,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'УДАРИТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'УДАРИТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая будет в оригинальном регистре
@@ -1208,7 +1208,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'УБИТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'УБИТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1223,7 +1223,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ПОНЮХАТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ПОНЮХАТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1238,7 +1238,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'КАСТРИРОВАТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'КАСТРИРОВАТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1253,7 +1253,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ЗАБРАТЬ В РАБСТВО\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ЗАБРАТЬ В РАБСТВО \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1268,7 +1268,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ПОЖАТЬ РУКУ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ПОЖАТЬ РУКУ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1284,7 +1284,7 @@ def echo_all(message):
 
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ПРИГЛАСИТЬ НА ЧАЙ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ПРИГЛАСИТЬ НА ЧАЙ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1299,7 +1299,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'КУСЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'КУСЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1314,7 +1314,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ОТСОСАТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ОТСОСАТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1329,7 +1329,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ВЫЕБАТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ВЫЕБАТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1344,7 +1344,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ИЗВИНИТЬСЯ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ИЗВИНИТЬСЯ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1359,7 +1359,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ЛИЗНУТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ЛИЗНУТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1374,7 +1374,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ШЛЁПНУТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ШЛЁПНУТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1389,7 +1389,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ПОСЛАТЬ НАХУЙ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ПОСЛАТЬ НАХУЙ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1404,7 +1404,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ПОХВАЛИТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ПОХВАЛИТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1419,7 +1419,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'СЖЕЧЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'СЖЕЧЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1434,7 +1434,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ТРАХНУТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ТРАХНУТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1449,7 +1449,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'УЩИПНУТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'УЩИПНУТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1464,7 +1464,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'УЕБАТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'УЕБАТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая будет в оригинальном регистре
@@ -1494,7 +1494,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ПОМЕРИТЬСЯ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ПОМЕРИТЬСЯ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1509,7 +1509,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ОБКОНЧАТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ОБКОНЧАТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая будет в оригинальном регистре
@@ -1543,7 +1543,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ЗАПИСАТЬ НА НОГОТОЧКИ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ЗАПИСАТЬ НА НОГОТОЧКИ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1558,7 +1558,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ДЕЛАТЬ СЕКС\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ДЕЛАТЬ СЕКС \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1573,7 +1573,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'СВЯЗАТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'СВЯЗАТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1588,7 +1588,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ЗАСТАВИТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ЗАСТАВИТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1603,7 +1603,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ПОВЕСИТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ПОВЕСИТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1618,7 +1618,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'УНИЧТОЖИТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'УНИЧТОЖИТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1633,7 +1633,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ПРОДАТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ПРОДАТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1648,7 +1648,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ЩЕКОТАТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ЩЕКОТАТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1663,7 +1663,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ВЗОРВАТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ВЗОРВАТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1678,7 +1678,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ШМАЛЬНУТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ШМАЛЬНУТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1693,7 +1693,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ЗАСОСАТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ЗАСОСАТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1708,7 +1708,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ЛЕЧЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ЛЕЧЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1723,7 +1723,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'УНИЗИТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'УНИЗИТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1738,7 +1738,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'АРЕСТОВАТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'АРЕСТОВАТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1753,7 +1753,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'НАОРАТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'НАОРАТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1768,7 +1768,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'РАССМЕШИТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'РАССМЕШИТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1783,7 +1783,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'УШАТАТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'УШАТАТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1798,7 +1798,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ПОРВАТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ПОРВАТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1813,7 +1813,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ВЫКОПАТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ВЫКОПАТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1828,7 +1828,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'СОЖРАТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'СОЖРАТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1843,7 +1843,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ПОДСТРИЧЬ НАЛЫСО\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ПОДСТРИЧЬ НАЛЫСО \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1858,7 +1858,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ВЫЕБАТЬ МОЗГИ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ВЫЕБАТЬ МОЗГИ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1873,7 +1873,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ПЕРЕЕХАТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ПЕРЕЕХАТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1888,7 +1888,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ВЫПОРОТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ВЫПОРОТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1903,7 +1903,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ЗАКОПАТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ЗАКОПАТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1918,7 +1918,7 @@ def echo_all(message):
                 catch_error(message, e)
     
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ПОЩУПАТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ПОЩУПАТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1933,7 +1933,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ПОДРОЧИТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ПОДРОЧИТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1948,7 +1948,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ПОТИСКАТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ПОТИСКАТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1963,7 +1963,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ПОДАРИТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ПОДАРИТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1978,7 +1978,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ВЫПИТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ВЫПИТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -1993,7 +1993,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'НАКАЗАТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'НАКАЗАТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -2008,7 +2008,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'РАЗОРВАТЬ ОЧКО\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'РАЗОРВАТЬ ОЧКО \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -2023,7 +2023,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ДОВЕСТИ ДО СКВИРТА\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ДОВЕСТИ ДО СКВИРТА \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -2038,7 +2038,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'НАПОИТЬ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'НАПОИТЬ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -2053,7 +2053,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ЦЫЦ!\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ЦЫЦ! \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -2068,7 +2068,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ЦЫЦ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ЦЫЦ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -2083,7 +2083,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ОТПРАВИТЬ В ДУРКУ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ОТПРАВИТЬ В ДУРКУ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -2098,7 +2098,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ОТОРВАТЬ ЧЛЕН\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ОТОРВАТЬ ЧЛЕН \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -2113,7 +2113,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'САМООТСОС\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'САМООТСОС \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
@@ -2128,7 +2128,7 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'ПОВЕСИТЬСЯ\s*(.*)', message.text, re.IGNORECASE)
+        match = re.match(r'ПОВЕСИТЬСЯ \s*(.*)', message.text, re.IGNORECASE)
         if match:
             username = message.from_user.first_name
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
