@@ -966,6 +966,41 @@ def echo_all(message):
 ##############       RP COMMANDS        #################
 
     if message.text: # Убедимся, что сообщение не пустое
+            match = re.match(r'\bСАМООТСОС\b\s*(.*)', message.text, re.IGNORECASE)
+            if match:
+                username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                # Извлекаем фразу, которая теперь будет в оригинальном регистре
+                user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                # Формируем ответ
+                response_text = f'Великий одиночка {username} отсосал сам у себя от отчаяния.'
+                if user_phrase: # Добавляем фразу, только если она есть
+                    response_text += f'\nСо словами: {user_phrase}'
+                try:
+                    bot.reply_to(message, response_text, parse_mode='HTML')
+                except Exception as e:
+                    catch_error(message, e)
+
+    if message.text: # Убедимся, что сообщение не пустое
+        match = re.match(r'\bПОВЕСИТЬСЯ\b\s*(.*)', message.text, re.IGNORECASE)
+        if match:
+            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            # Извлекаем фразу, которая теперь будет в оригинальном регистре
+            user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            # Формируем ответ
+            response_text = f'{username},\n\nF.'
+            if user_phrase: # Добавляем фразу, только если она есть
+                response_text += f'\nСо словами: {user_phrase}'
+            try:
+                bot.reply_to(message, response_text, parse_mode='HTML')
+            except Exception as e:
+                catch_error(message, e)
+
+    ######## IGNORE RP ######
+
+    if not message.reply_to_message:
+        return
+
+    if message.text: # Убедимся, что сообщение не пустое
         if message.reply_to_message: # Новая проверка
             match = re.match(r'\bОБНЯТЬ\b\s*(.*)', message.text, re.IGNORECASE)
             if match:
@@ -2131,39 +2166,6 @@ def echo_all(message):
             except Exception as e:
                 catch_error(message, e)
 
-    if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'\bСАМООТСОС\b\s*(.*)', message.text, re.IGNORECASE)
-        if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-            # Извлекаем фразу, которая теперь будет в оригинальном регистре
-            user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-            # Формируем ответ
-            response_text = f'Великий одиночка {username} отсосал сам у себя от отчаяния.'
-            if user_phrase: # Добавляем фразу, только если она есть
-                response_text += f'\nСо словами: {user_phrase}'
-            try:
-                bot.reply_to(message, response_text, parse_mode='HTML')
-            except Exception as e:
-                catch_error(message, e)
 
-    if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'\bПОВЕСИТЬСЯ\b\s*(.*)', message.text, re.IGNORECASE)
-        if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-            # Извлекаем фразу, которая теперь будет в оригинальном регистре
-            user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-            # Формируем ответ
-            response_text = f'{username},\n\nF.'
-            if user_phrase: # Добавляем фразу, только если она есть
-                response_text += f'\nСо словами: {user_phrase}'
-            try:
-                bot.reply_to(message, response_text, parse_mode='HTML')
-            except Exception as e:
-                catch_error(message, e)
-
-    ######## IGNORE RP ######
-
-    if not message.reply_to_message:
-        return
 
 bot.polling(none_stop=True)
