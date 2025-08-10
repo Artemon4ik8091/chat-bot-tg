@@ -2106,35 +2106,25 @@ def echo_all(message):
             except Exception as e:
                 catch_error(message, e)
 
-    if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'\bЦЫЦ!\b\s*(.*)', message.text, re.IGNORECASE)
-        if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-            # Извлекаем фразу, которая теперь будет в оригинальном регистре
-            user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-            # Формируем ответ
-            response_text = f'Уууу.. {username} закрыл ротик {get_name(message)} и привязал к кроватке. Знаешь.. я не думаю что тебе что то хорошее светит.. а хотя может.. хз крч.'
-            if user_phrase: # Добавляем фразу, только если она есть
-                response_text += f'\nСо словами: {user_phrase}'
-            try:
-                bot.reply_to(message, response_text, parse_mode='HTML')
-            except Exception as e:
-                catch_error(message, e)
+    if message.text.upper() == 'ЦЫЦ!' and message.reply_to_message:
+        username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        response_text = f'Уууу.. {username} закрыл ротик {get_name(message)} и привязал к кроватке. Знаешь.. я не думаю что тебе что то хорошее светит.. а хотя может.. хз крч.'
+        try:
+            print(f"DEBUG: Отправка response_text: {response_text}")
+            bot.reply_to(message, response_text, parse_mode='HTML')
+        except Exception as e:
+            catch_error(message, e)
+        return
 
-    if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'\bЦЫЦ\b\s*(.*)', message.text, re.IGNORECASE)
-        if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-            # Извлекаем фразу, которая теперь будет в оригинальном регистре
-            user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-            # Формируем ответ
-            response_text = f'{username} заткнул {get_name(message)} используя кляп и кинул в подвал. А нехер выделываться было.'
-            if user_phrase: # Добавляем фразу, только если она есть
-                response_text += f'\nСо словами: {user_phrase}'
-            try:
-                bot.reply_to(message, response_text, parse_mode='HTML')
-            except Exception as e:
-                catch_error(message, e)
+    if message.text.upper() == 'МОЙ' and message.reply_to_message:
+        username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        response_text = f'{username} заткнул {get_name(message)} используя кляп и кинул в подвал. А нехер выделываться было.'
+        try:
+            print(f"DEBUG: Отправка response_text: {response_text}")
+            bot.reply_to(message, response_text, parse_mode='HTML')
+        except Exception as e:
+            catch_error(message, e)
+        return
 
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bОТПРАВИТЬ В ДУРКУ\b\s*(.*)', message.text, re.IGNORECASE)
