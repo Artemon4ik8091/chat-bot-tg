@@ -2116,7 +2116,7 @@ def echo_all(message):
             catch_error(message, e)
         return
 
-    if message.text.upper() == 'МОЙ' and message.reply_to_message:
+    if message.text.upper() == 'ЦЫЦ' and message.reply_to_message:
         username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
         response_text = f'{username} заткнул {get_name(message)} используя кляп и кинул в подвал. А нехер выделываться было.'
         try:
