@@ -1,4 +1,5 @@
 import re
+import subprocess
 import telebot
 import os
 import json
@@ -417,6 +418,24 @@ def get_user_link_sync(user_id, chat_id):
     except Exception as e:
         print(f"Error getting user link for ID {user_id} in chat {chat_id}: {e}")
         return f"Пользователь {user_id}"
+    
+def get_uptime():
+    try:
+        # Запускаем команду 'uptime'
+        # 'capture_output=True' сохраняет stdout и stderr
+        # 'text=True' декодирует вывод в строку (UTF-8 по умолчанию)
+        result = subprocess.run(['uptime'], capture_output=True, text=True, check=True)
+                
+        # Возвращаем стандартный вывод команды
+        return result.stdout.strip()
+    except subprocess.CalledProcessError as e:
+        # Обработка ошибок, если команда завершилась с ненулевым кодом
+        print(f"Ошибка выполнения команды: {e}")
+        return ""
+    except FileNotFoundError:
+        # Обработка ошибки, если команда 'uptime' не найдена
+        print("Команда 'uptime' не найдена.")
+        return ""
 
 # НОВАЯ ФУНКЦИЯ: Форматирование времени в "X минут/часов назад"
 def format_time_ago(datetime_str):
@@ -570,6 +589,11 @@ def echo_all(message):
     if message.text == 'bot?':
         username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
         bot.reply_to(message, f'Hello. I see you, {username}')
+
+    if message.text.upper() == "КАКАЯ НАГРУЗКА":
+        #bot.reply_to(message, f"Никакая блин. Мне лень считать.")
+        uptime_output = get_uptime()
+        bot.reply_to(message, "Выполняю команду uptime:\n" + uptime_output)
 
     if message.text.upper() == 'ПИНГ':bot.reply_to(message, f'ПОНГ')
 
