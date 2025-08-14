@@ -275,9 +275,6 @@ def load_data(filename='warns.json'):
 
 user_warns = load_data('warns.json')
 
-# Modified user_data structure: {chat_id: {user_id: {date: message_count}}}
-# Добавлено поле 'last_activity' для хранения времени последней активности пользователя
-# user_data = {chat_id: {user_id: {'stats': {date: message_count}, 'last_activity': timestamp}}}
 user_data = load_data('user_data.json') #
 
 # Новые функции для получения статистики конкретного пользователя
@@ -893,6 +890,7 @@ def echo_all(message):
         bot.reply_to(message, '''Помощь по командам:
 
 <blockquote expandable><b>Основные команды бота</b>
+Какая нагрузка - Показывает нагрузку сервера (выполняет команду uptime)
 Топ день / Топ дня - Топ пользователей за день в этом чате.
 Топ неделя / Топ недели - Топ пользователей за неделю в этом чате.
 Топ месяц / Топ месяца - Топ пользователей за месяц в этом чате.
@@ -1474,6 +1472,21 @@ def echo_all(message):
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
             response_text = f'{username} послал куда подальше {get_name(message)}'
+            if user_phrase: # Добавляем фразу, только если она есть
+                response_text += f'\nСо словами: {user_phrase}'
+            try:
+                bot.reply_to(message, response_text, parse_mode='HTML')
+            except Exception as e:
+                catch_error(message, e)
+
+    if message.text: # Убедимся, что сообщение не пустое
+        match = re.match(r'\bТП\b\s*(.*)', message.text, re.IGNORECASE)
+        if match:
+            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            # Извлекаем фразу, которая теперь будет в оригинальном регистре
+            user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            # Формируем ответ
+            response_text = f'{username} магическим образом тепнулся к {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -2179,7 +2192,5 @@ def echo_all(message):
                 bot.reply_to(message, response_text, parse_mode='HTML')
             except Exception as e:
                 catch_error(message, e)
-
-
 
 bot.polling(none_stop=True)
