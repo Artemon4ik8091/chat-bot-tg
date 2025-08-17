@@ -4,6 +4,7 @@ import telebot
 import os
 import json
 import random
+import sqlite3
 
 from datetime import datetime, timedelta
 from telebot import types, util
@@ -14,39 +15,69 @@ import asyncio
 ####### CREATE DB IF NOT EXIST ##########
 
 if not os.path.exists('db.json'):
-    # Добавлено 'admin_id_for_errors' со значением по умолчанию None
     db = {'token': 'None', 'admin_id_for_errors': None}
     js = json.dumps(db, indent=2)
     with open('db.json', 'w') as outfile:
         outfile.write(js)
-
     print('ВНИМАНИЕ: Файл db.json создан. Введи токен в "None" и свой ID администратора в "admin_id_for_errors" (db.json)')
-    exit() # Бот завершит работу, пока вы не отредактируете db.json
+    exit()
 else:
-    print('DEBUG: Файл db.json существует.') # Добавлено отладочное сообщение
+    print('DEBUG: Файл db.json существует.')
 
-if not os.path.exists('users.json'):
-        users = {}
-        js = json.dumps(users, indent=2)
-        with open('users.json', 'w') as outfile:
-                outfile.write(js)
-        print('DEBUG: Файл users.json создан.') # Добавлено отладочное сообщение
+# Initialize SQLite database
+def init_sqlite_db():
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            hashed_username TEXT PRIMARY KEY,
+            user_id INTEGER
+        )
+    ''')
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS low_admins (
+            chat_id TEXT,
+            username TEXT,
+            PRIMARY KEY (chat_id, username)
+        )
+    ''')
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS warns (
+            user_id TEXT PRIMARY KEY,
+            warn_count INTEGER,
+            last_warn_time TEXT
+        )
+    ''')
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS user_data (
+            chat_id TEXT,
+            user_id TEXT,
+            date TEXT,
+            message_count INTEGER,
+            last_activity TEXT,
+            PRIMARY KEY (chat_id, user_id, date)
+        )
+    ''')
+    
+    conn.commit()
+    conn.close()
+    print('DEBUG: SQLite database initialized.')
 
-if not os.path.exists('la.json'):
-        la = {}
-        js = json.dumps(la, indent=2)
-        with open('la.json', 'w') as outfile:
-                outfile.write(js)
-        print('DEBUG: Файл la.json создан.') # Добавлено отладочное сообщение
+init_sqlite_db()
 
 ############ WORK WITH DBs ##########
 
 def read_db():
-    print('DEBUG: Чтение db.json...') # Добавлено отладочное сообщение
+    print('DEBUG: Чтение db.json...')
     with open('db.json', 'r') as openfile:
         db = json.load(openfile)
-        print(f"DEBUG: Прочитанный токен: {db.get('token', 'Токен не найден')}") # Добавлено отладочное сообщение для токена
+        print(f"DEBUG: Прочитанный токен: {db.get('token', 'Токен не найден')}")
         return db
+
 def write_db(db):
     js = json.dumps(db, indent=2)
     with open('db.json', 'w') as outfile:
@@ -56,7 +87,6 @@ known_errs = {
     'A request to the Telegram API was unsuccessful. Error code: 400. Description: Bad Request: not enough rights to restrict/unrestrict chat member': 'Увы, но у бота не хватает прав для этого.'
 }
 
-# Инициализируем log_stream для логирования ошибок
 import io
 log_stream = io.StringIO()
 logging.basicConfig(stream=log_stream, level=logging.ERROR)
@@ -90,35 +120,47 @@ def catch_error(message, e, err_type=None):
         bot.send_message(message.chat.id, 'Так.. а кому это адресованно то, глупый админ?')
 
 def read_users():
-    global users
-    with open('users.json', 'r') as openfile:
-        users = json.load(openfile)
-def write_users():
-    global users
-    js = json.dumps(users, indent=2)
-    with open('users.json', 'w') as outfile:
-        outfile.write(js)
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT hashed_username, user_id FROM users')
+    users = {row[0]: row[1] for row in cursor.fetchall()}
+    conn.close()
+    return users
 
-# LA - Low Admin.
-# Admin permissions in bot without admin rights.
+def write_users(hashed_username, user_id):
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute('INSERT OR REPLACE INTO users (hashed_username, user_id) VALUES (?, ?)', (hashed_username, user_id))
+    conn.commit()
+    conn.close()
+
 def read_la():
-    with open('la.json', 'r') as openfile:
-        la = json.load(openfile)
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT chat_id, username FROM low_admins')
+    la = {}
+    for chat_id, username in cursor.fetchall():
+        if chat_id not in la:
+            la[chat_id] = []
+        la[chat_id].append(username)
+    conn.close()
     return la
-def write_la(la):
-    js = json.dumps(la, indent=2)
-    with open('la.json', 'w') as outfile:
-        outfile.write(js)
 
-####################           FAST HASH              #################
+def write_la(la):
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM low_admins')
+    for chat_id, usernames in la.items():
+        for username in usernames:
+            cursor.execute('INSERT INTO low_admins (chat_id, username) VALUES (?, ?)', (chat_id, username))
+    conn.commit()
+    conn.close()
+
 from xxhash import xxh32
 
-# Generate fast hash
 def sha(text):
     text = str(text)
     return xxh32(text).hexdigest()
-
-##################FUNCTIONS########
 
 def get_admins(message):
     try:
@@ -135,98 +177,82 @@ def get_admins(message):
         catch_error(message, e)
         return None
 
-# Fix for anon admins, all anon (not premium) users == admins
 def is_anon(message):
-    if message.from_user.username ==  'Channel_Bot' or message.from_user.username == 'GroupAnonymousBot':
+    if message.from_user.username == 'Channel_Bot' or message.from_user.username == 'GroupAnonymousBot':
         if message.from_user.is_premium == None:
             return True
-    else:
-        return False
+    return False
 
-# Return id from db/chat of user
 def get_target(message):
     try:
-        global users
-
+        users = read_users()
         spl = message.text.split()
-        if ( len(spl) > 1 and spl[1][0] == '@' ) or ( len(spl) > 2  and spl[2][0] == '@' ):
+        if (len(spl) > 1 and spl[1][0] == '@') or (len(spl) > 2 and spl[2][0] == '@'):
             for i in spl:
                 if i[0] == '@':
                     username = i[1:]
                     break
-            read_users()
-            if sha(username) in users:
-                return users[sha(username)]
-            else:
-                return None
+            hashed_username = sha(username)
+            if hashed_username in users:
+                return users[hashed_username]
+            return None
         else:
             target = message.reply_to_message.from_user.id
             if target not in get_admins(message):
                 return target
-            else:
-                return None
+            return None
     except:
         return None
 
 def get_name(message):
     try:
         text = message.text.split()
-        # Проверяем, есть ли @username
         if len(text) > 1 and text[1].startswith('@'):
-            username = text[1][1:]  # Убираем '@'
-            # Проверяем, что username содержит только допустимые символы
+            username = text[1][1:]
             if re.match(r'^[a-zA-Z0-9_]+$', username):
-                read_users()
+                users = read_users()
                 hashed_username = sha(username.lower())
                 if hashed_username in users:
                     user_id = users[hashed_username]
                     return get_user_link_sync(user_id, message.chat.id)
-                # Экранируем username для безопасного вывода
                 username = username.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
                 return f"@{username}"
             else:
-                return "пользователь"  # Некорректный username
+                return "пользователь"
         if len(text) > 2 and text[2].startswith('@'):
-            username = text[2][1:]  # Убираем '@'
-            # Проверяем, что username содержит только допустимые символы
+            username = text[2][1:]
             if re.match(r'^[a-zA-Z0-9_]+$', username):
-                read_users()
+                users = read_users()
                 hashed_username = sha(username.lower())
                 if hashed_username in users:
                     user_id = users[hashed_username]
                     return get_user_link_sync(user_id, message.chat.id)
-                # Экранируем username для безопасного вывода
                 username = username.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
                 return f"@{username}"
             else:
-                return "пользователь"  # Некорректный username
-        # Если это ответ на сообщение
+                return "пользователь"
         return telebot.util.user_link(message.reply_to_message.from_user)
     except Exception as e:
         catch_error(message, e)
         return "пользователь"
 
-# Get time for '/mute'
-# [time, time_in_sec, format]
 def get_time(message):
-    formats = {'s':[1, 'секунд(ы)'], 'm':[60, 'минут(ы)'], 'h': [3600,'час(а)'], 'd': [86400,'день/дня']}
-    text = message.text.split()[1:] ; time = None
-
-    # Find format in text
+    formats = {'s': [1, 'секунд(ы)'], 'm': [60, 'минут(ы)'], 'h': [3600, 'час(а)'], 'd': [86400, 'день/дня']}
+    text = message.text.split()[1:]
+    time = None
     for i in text:
         if time:
             break
         for f in list(formats.keys()):
             if f in i:
                 try:
-                    time = [i[:-1], int(i[:-1]) * formats[i[-1]][0] , formats[i[-1]][1] ]
+                    time = [i[:-1], int(i[:-1]) * formats[i[-1]][0], formats[i[-1]][1]]
                     break
                 except:
                     pass
-
     return time
 
-def have_rights(message, set_la = False):
+def have_rights(message, set_la=False):
     la = read_la()
     if message.from_user.id in get_admins(message):
         return True
@@ -237,7 +263,7 @@ def have_rights(message, set_la = False):
             return True
     else:
         bot.reply_to(message, 'Да кто ты такой, чтобы я тебя слушался??')
-        return False # Explicitly return False if no rights
+        return False
 
 def key_by_value(dictionary, key):
     for i in dictionary:
@@ -246,120 +272,138 @@ def key_by_value(dictionary, key):
     return None
 
 def analytic(message):
-    global users
-    read_users()
-
     current_user_id = message.from_user.id
     current_username = message.from_user.username
-
     if current_username is None:
         return
-
-    # Приводим юзернейм к нижнему регистру перед хешированием
     hashed_current_username = sha(current_username.lower())
+    write_users(hashed_current_username, current_user_id)
 
-    users[hashed_current_username] = current_user_id
-    write_users()
+def load_data(filename):
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    if filename == 'warns.json':
+        cursor.execute('SELECT user_id, warn_count, last_warn_time FROM warns')
+        data = {row[0]: {'warn_count': row[1], 'last_warn_time': row[2]} for row in cursor.fetchall()}
+    elif filename == 'user_data.json':
+        cursor.execute('SELECT chat_id, user_id, date, message_count, last_activity FROM user_data')
+        data = {}
+        for chat_id, user_id, date, message_count, last_activity in cursor.fetchall():
+            if chat_id not in data:
+                data[chat_id] = {}
+            if user_id not in data[chat_id]:
+                data[chat_id][user_id] = {'stats': {}, 'last_activity': last_activity}
+            data[chat_id][user_id]['stats'][date] = message_count
+    conn.close()
+    return data
 
-
-def save_data(data, filename='warns.json'):
-    with open(filename, 'w') as f:
-        json.dump(data, f, indent=2)
-
-def load_data(filename='warns.json'):
-    try:
-        with open(filename, 'r') as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return {}
+def save_data(data, filename):
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    if filename == 'warns.json':
+        cursor.execute('DELETE FROM warns')
+        for user_id, info in data.items():
+            cursor.execute('INSERT INTO warns (user_id, warn_count, last_warn_time) VALUES (?, ?, ?)',
+                           (user_id, info['warn_count'], info['last_warn_time']))
+    elif filename == 'user_data.json':
+        cursor.execute('DELETE FROM user_data')
+        for chat_id, users in data.items():
+            for user_id, info in users.items():
+                last_activity = info.get('last_activity', '')
+                for date, count in info['stats'].items():
+                    cursor.execute('INSERT INTO user_data (chat_id, user_id, date, message_count, last_activity) VALUES (?, ?, ?, ?, ?)',
+                                   (chat_id, user_id, date, count, last_activity))
+    conn.commit()
+    conn.close()
 
 user_warns = load_data('warns.json')
 
-user_data = load_data('user_data.json') #
+user_data = load_data('user_data.json')
 
-# Новые функции для получения статистики конкретного пользователя
 def get_user_daily_stats(chat_id, user_id):
     today = datetime.now().strftime('%Y-%m-%d')
-    if str(chat_id) in user_data and str(user_id) in user_data[str(chat_id)] and 'stats' in user_data[str(chat_id)][str(user_id)]:
-        return user_data[str(chat_id)][str(user_id)]['stats'].get(today, 0) #
-    return 0 #
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT message_count FROM user_data WHERE chat_id = ? AND user_id = ? AND date = ?',
+                   (str(chat_id), str(user_id), today))
+    result = cursor.fetchone()
+    conn.close()
+    return result[0] if result else 0
 
 def get_user_weekly_stats(chat_id, user_id):
     week_ago = datetime.now() - timedelta(days=7)
-    total_messages = 0
-    if str(chat_id) in user_data and str(user_id) in user_data[str(chat_id)] and 'stats' in user_data[str(chat_id)][str(user_id)]:
-        for date_str, count in user_data[str(chat_id)][str(user_id)]['stats'].items(): #
-            date_obj = datetime.strptime(date_str, '%Y-%m-%d') #
-            if date_obj >= week_ago: #
-                total_messages += count #
-    return total_messages #
+    week_ago_str = week_ago.strftime('%Y-%m-%d')
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT SUM(message_count) FROM user_data WHERE chat_id = ? AND user_id = ? AND date >= ?',
+                   (str(chat_id), str(user_id), week_ago_str))
+    result = cursor.fetchone()
+    conn.close()
+    return result[0] if result[0] else 0
 
 def get_user_monthly_stats(chat_id, user_id):
-    month_ago = datetime.now() - timedelta(days=30) # Приближенно 30 дней для месяца
-    total_messages = 0
-    if str(chat_id) in user_data and str(user_id) in user_data[str(chat_id)] and 'stats' in user_data[str(chat_id)][str(user_id)]:
-        for date_str, count in user_data[str(chat_id)][str(user_id)]['stats'].items(): #
-            date_obj = datetime.strptime(date_str, '%Y-%m-%d') #
-            if date_obj >= month_ago: #
-                total_messages += count #
-    return total_messages #
+    month_ago = datetime.now() - timedelta(days=30)
+    month_ago_str = month_ago.strftime('%Y-%m-%d')
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT SUM(message_count) FROM user_data WHERE chat_id = ? AND user_id = ? AND date >= ?',
+                   (str(chat_id), str(user_id), month_ago_str))
+    result = cursor.fetchone()
+    conn.close()
+    return result[0] if result[0] else 0
 
 def get_user_all_time_stats(chat_id, user_id):
-    if str(chat_id) in user_data and str(user_id) in user_data[str(chat_id)] and 'stats' in user_data[str(chat_id)][str(user_id)]:
-        return sum(user_data[str(chat_id)][str(user_id)]['stats'].values()) #
-    return 0 #
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT SUM(message_count) FROM user_data WHERE chat_id = ? AND user_id = ?',
+                   (str(chat_id), str(user_id)))
+    result = cursor.fetchone()
+    conn.close()
+    return result[0] if result[0] else 0
 
 def get_daily_stats(chat_id):
     today = datetime.now().strftime('%Y-%m-%d')
-    daily_stats = {}
-    if str(chat_id) in user_data:
-        for user_id, user_info in user_data[str(chat_id)].items(): #
-            if 'stats' in user_info and today in user_info['stats']: #
-                daily_stats[user_id] = user_info['stats'][today] #
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT user_id, message_count FROM user_data WHERE chat_id = ? AND date = ?',
+                   (str(chat_id), today))
+    daily_stats = {row[0]: row[1] for row in cursor.fetchall()}
+    conn.close()
     return daily_stats
 
 def get_weekly_stats(chat_id):
     week_ago = datetime.now() - timedelta(days=7)
-    weekly_stats = {}
-    if str(chat_id) in user_data:
-        for user_id, user_info in user_data[str(chat_id)].items(): #
-            total_messages = 0
-            if 'stats' in user_info: #
-                for date_str, count in user_info['stats'].items(): #
-                    date_obj = datetime.strptime(date_str, '%Y-%m-%d') #
-                    if date_obj >= week_ago: #
-                        total_messages += count #
-            if total_messages > 0:
-                weekly_stats[user_id] = total_messages
+    week_ago_str = week_ago.strftime('%Y-%m-%d')
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT user_id, SUM(message_count) FROM user_data WHERE chat_id = ? AND date >= ? GROUP BY user_id',
+                   (str(chat_id), week_ago_str))
+    weekly_stats = {row[0]: row[1] for row in cursor.fetchall()}
+    conn.close()
     return weekly_stats
 
 def get_monthly_stats(chat_id):
-    month_ago = datetime.now() - timedelta(days=30) # Приближенно 30 дней для месяца
-    monthly_stats = {}
-    if str(chat_id) in user_data:
-        for user_id, user_info in user_data[str(chat_id)].items(): #
-            total_messages = 0
-            if 'stats' in user_info: #
-                for date_str, count in user_info['stats'].items(): #
-                    date_obj = datetime.strptime(date_str, '%Y-%m-%d') #
-                    if date_obj >= month_ago: #
-                        total_messages += count #
-            if total_messages > 0:
-                monthly_stats[user_id] = total_messages
+    month_ago = datetime.now() - timedelta(days=30)
+    month_ago_str = month_ago.strftime('%Y-%m-%d')
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT user_id, SUM(message_count) FROM user_data WHERE chat_id = ? AND date >= ? GROUP BY user_id',
+                   (str(chat_id), month_ago_str))
+    monthly_stats = {row[0]: row[1] for row in cursor.fetchall()}
+    conn.close()
     return monthly_stats
 
 def get_all_time_stats(chat_id):
-    all_time_stats = {}
-    if str(chat_id) in user_data:
-        for user_id, user_info in user_data[str(chat_id)].items(): #
-            total_messages = 0
-            if 'stats' in user_info: #
-                total_messages = sum(user_info['stats'].values()) #
-            if total_messages > 0:
-                all_time_stats[user_id] = total_messages
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT user_id, SUM(message_count) FROM user_data WHERE chat_id = ? GROUP BY user_id',
+                   (str(chat_id),))
+    all_time_stats = {row[0]: row[1] for row in cursor.fetchall()}
+    conn.close()
     return all_time_stats
 
 def warn_user(message, user_id):
+    user_warns = load_data('warns.json')
     if user_id not in user_warns:
         user_warns[user_id] = {'warn_count': 1, 'last_warn_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         bot.reply_to(message, f"{get_name(message)}, Ая-яй, вредим значит? Так нельзя. Пока что просто предупреждаю. Максимум 3 преда, потом - забаню.", parse_mode='HTML')
@@ -368,17 +412,16 @@ def warn_user(message, user_id):
         user_warns[user_id]['last_warn_time'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         bot.reply_to(message, f"{get_name(message)}, Ты опять вредишь? Напоминаю что максимум 3 преда, потом - забаню.", parse_mode='HTML')
 
-    # Логика применения наказаний на основе warn_count
     if user_warns[user_id]['warn_count'] >= 3:
-        bot.reply_to(message, "Я предупреждал...", parse_mode = 'HTML')
+        bot.reply_to(message, "Я предупреждал...", parse_mode='HTML')
         target = get_target(message)
         if target:
             bot.ban_chat_member(message.chat.id, target)
 
-
     save_data(user_warns, 'warns.json')
 
 def remove_warn(user_id):
+    user_warns = load_data('warns.json')
     if user_id in user_warns:
         user_warns[user_id]['warn_count'] -= 1
         if user_warns[user_id]['warn_count'] <= 0:
@@ -388,53 +431,35 @@ def remove_warn(user_id):
     else:
         return False
 
-#############TOKEN INIT#####
-
 db = read_db()
-read_users()
-print('DEBUG: Инициализация бота...') # Добавлено отладочное сообщение
+print('DEBUG: Инициализация бота...')
 bot = telebot.TeleBot(db['token'])
-print('DEBUG: Бот успешно инициализирован. Запуск polling...') # Добавлено отладочное сообщение
+print('DEBUG: Бот успешно инициализирован. Запуск polling...')
 
-# Synchronous version of get_user_link
-# It's better to use telebot.util.user_link directly if you have the User object
-# Or if you need to fetch the user by ID, do it synchronously.
 def get_user_link_sync(user_id, chat_id):
     try:
         member = bot.get_chat_member(chat_id, user_id)
         first_name = member.user.first_name
-        # Экранируем специальные HTML-символы для безопасности
         first_name = first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-        # Проверяем наличие юзернейма
         if member.user.username:
-            # Формируем ссылку вида https://t.me/username с first_name в качестве текста
             return f'<a href="https://t.me/{member.user.username}">{first_name}</a>'
         else:
-            # Если юзернейма нет, возвращаем просто first_name без ссылки
             return first_name
     except Exception as e:
         print(f"Error getting user link for ID {user_id} in chat {chat_id}: {e}")
         return f"Пользователь {user_id}"
-    
+
 def get_uptime():
     try:
-        # Запускаем команду 'uptime'
-        # 'capture_output=True' сохраняет stdout и stderr
-        # 'text=True' декодирует вывод в строку (UTF-8 по умолчанию)
         result = subprocess.run(['uptime'], capture_output=True, text=True, check=True)
-                
-        # Возвращаем стандартный вывод команды
         return result.stdout.strip()
     except subprocess.CalledProcessError as e:
-        # Обработка ошибок, если команда завершилась с ненулевым кодом
         print(f"Ошибка выполнения команды: {e}")
         return ""
     except FileNotFoundError:
-        # Обработка ошибки, если команда 'uptime' не найдена
         print("Команда 'uptime' не найдена.")
         return ""
 
-# НОВАЯ ФУНКЦИЯ: Форматирование времени в "X минут/часов назад"
 def format_time_ago(datetime_str):
     if not datetime_str:
         return "Нет данных"
@@ -442,7 +467,6 @@ def format_time_ago(datetime_str):
         last_activity_dt = datetime.strptime(datetime_str, '%Y-%m-%d %H:%M:%S')
         now = datetime.now()
         delta = now - last_activity_dt
-
         if delta.total_seconds() < 60:
             return "только что"
         elif delta.total_seconds() < 3600:
@@ -453,7 +477,7 @@ def format_time_ago(datetime_str):
                 return f"{minutes} минуты назад"
             else:
                 return f"{minutes} минут назад"
-        elif delta.total_seconds() < 86400: # 24 часа
+        elif delta.total_seconds() < 86400:
             hours = int(delta.total_seconds() / 3600)
             if hours == 1:
                 return f"{hours} час назад"
@@ -473,14 +497,11 @@ def format_time_ago(datetime_str):
         print(f"Ошибка при форматировании времени: {e}")
         return "Неизвестно"
 
-
-## Changed from @bot.message_handler(commands=['top_day'])
 @bot.message_handler(func=lambda message: message.text and message.text.upper() in ['ТОП ДЕНЬ', 'ТОП ДНЯ'])
 def handle_top_day(message):
     chat_id = str(message.chat.id)
     daily_stats = get_daily_stats(chat_id)
     sorted_stats = sorted(daily_stats.items(), key=lambda x: x[1], reverse=True)
-
     text = "Топ пользователей за сегодня:\n"
     total_messages_chat = 0
     if not sorted_stats:
@@ -493,14 +514,11 @@ def handle_top_day(message):
     text += f"\nВсего сообщений в чате за сегодня: {total_messages_chat}"
     bot.send_message(message.chat.id, text, parse_mode='HTML', disable_web_page_preview=True)
 
-
-## Changed from @bot.message_handler(commands=['top_week'])
 @bot.message_handler(func=lambda message: message.text and message.text.upper() in ['ТОП НЕДЕЛЯ', 'ТОП НЕДЕЛИ'])
 def handle_top_week(message):
     chat_id = str(message.chat.id)
     weekly_stats = get_weekly_stats(chat_id)
     sorted_stats = sorted(weekly_stats.items(), key=lambda x: x[1], reverse=True)
-
     text = "Топ пользователей за последнюю неделю:\n"
     total_messages_chat = 0
     if not sorted_stats:
@@ -518,7 +536,6 @@ def handle_top_month(message):
     chat_id = str(message.chat.id)
     monthly_stats = get_monthly_stats(chat_id)
     sorted_stats = sorted(monthly_stats.items(), key=lambda x: x[1], reverse=True)
-
     text = "Топ пользователей за последний месяц:\n"
     total_messages_chat = 0
     if not sorted_stats:
@@ -536,7 +553,6 @@ def handle_top_all_time(message):
     chat_id = str(message.chat.id)
     all_time_stats = get_all_time_stats(chat_id)
     sorted_stats = sorted(all_time_stats.items(), key=lambda x: x[1], reverse=True)
-
     text = "Топ пользователей за все время:\n"
     total_messages_chat = 0
     if not sorted_stats:
@@ -549,8 +565,6 @@ def handle_top_all_time(message):
     text += f"\nВсего сообщений в чате за все время: {total_messages_chat}"
     bot.send_message(message.chat.id, text, parse_mode='HTML', disable_web_page_preview=True)
 
-##
-
 @bot.message_handler(commands=['start'])
 def start_message(message):
     bot.reply_to(message, "Привет, я недо-ирис чат бот. Фанатский форк на Python. Данный бот не имеет ничего общего с командой разработчиков оригинального телеграмм бота Iris. Чтоб вызвать справку отправь .хелп")
@@ -558,88 +572,83 @@ def start_message(message):
 @bot.message_handler(func=lambda message: True)
 def echo_all(message):
     analytic(message)
-    # Обновляем счетчик сообщений для пользователя в конкретном чате и время последней активности
-    if message.text: # Считаем только текстовые сообщения для простоты
-        chat_id = str(message.chat.id) #
-        user_id = str(message.from_user.id) #
-        date = datetime.now().strftime('%Y-%m-%d') #
-        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S') #
-
-        if chat_id not in user_data: #
-            user_data[chat_id] = {} #
-        if user_id not in user_data[chat_id]: #
-            user_data[chat_id][user_id] = {'stats': {}, 'last_activity': ''} #
-        
-        # Обновляем статистику сообщений
-        if date not in user_data[chat_id][user_id]['stats']: #
-            user_data[chat_id][user_id]['stats'][date] = 1 #
-        else: #
-            user_data[chat_id][user_id]['stats'][date] += 1 #
-        
-        # Обновляем время последней активности, исключая команду "КТО Я"
-        if message.text.upper() != 'КТО Я': # НОВОЕ УСЛОВИЕ
-            user_data[chat_id][user_id]['last_activity'] = current_time #
-
-        save_data(user_data, 'user_data.json') #
-
+    if message.text:
+        chat_id = str(message.chat.id)
+        user_id = str(message.from_user.id)
+        date = datetime.now().strftime('%Y-%m-%d')
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        conn = sqlite3.connect('bot_data.db')
+        cursor = conn.cursor()
+        cursor.execute('SELECT message_count FROM user_data WHERE chat_id = ? AND user_id = ? AND date = ?',
+                       (chat_id, user_id, date))
+        result = cursor.fetchone()
+        if result:
+            cursor.execute('UPDATE user_data SET message_count = ?, last_activity = ? WHERE chat_id = ? AND user_id = ? AND date = ?',
+                           (result[0] + 1, current_time if message.text.upper() != 'КТО Я' else '', chat_id, user_id, date))
+        else:
+            cursor.execute('INSERT INTO user_data (chat_id, user_id, date, message_count, last_activity) VALUES (?, ?, ?, ?, ?)',
+                           (chat_id, user_id, date, 1, current_time if message.text.upper() != 'КТО Я' else ''))
+        conn.commit()
+        conn.close()
 
     if message.text == 'bot?':
         username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
         bot.reply_to(message, f'Hello. I see you, {username}')
 
     if message.text.upper() == "КАКАЯ НАГРУЗКА":
-        #bot.reply_to(message, f"Никакая блин. Мне лень считать.")
         uptime_output = get_uptime()
         bot.reply_to(message, "Выполняю команду uptime:\n" + uptime_output)
 
-    if message.text.upper() == 'ПИНГ':bot.reply_to(message, f'ПОНГ')
+    if message.text.upper() == 'ПИНГ':
+        bot.reply_to(message, f'ПОНГ')
 
-    if message.text.upper() == 'ПИУ':bot.reply_to(message, f'ПАУ')
+    if message.text.upper() == 'ПИУ':
+        bot.reply_to(message, f'ПАУ')
 
-    if message.text.upper() == 'КИНГ': bot.reply_to(message, f'КОНГ')
+    if message.text.upper() == 'КИНГ':
+        bot.reply_to(message, f'КОНГ')
 
-    if message.text.upper() == 'БОТ': bot.reply_to(message, f'✅ На месте')
+    if message.text.upper() == 'БОТ':
+        bot.reply_to(message, f'✅ На месте')
 
-    if message.text.upper().startswith("ЧТО С БОТОМ"): bot.reply_to(message, f'Да тут я.. отойти даже нельзя блин.. Я ТОЖЕ ИМЕЮ ПРАВО НА ОТДЫХ!')
+    if message.text.upper().startswith("ЧТО С БОТОМ"):
+        bot.reply_to(message, f'Да тут я.. отойти даже нельзя блин.. Я ТОЖЕ ИМЕЮ ПРАВО НА ОТДЫХ!')
 
     if message.text.upper() == 'КТО Я':
-        user_id = str(message.from_user.id) #
-        chat_id = str(message.chat.id) #
-        username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;') #
-
-        # Получаем статистику для текущего пользователя
-        daily_count = get_user_daily_stats(chat_id, user_id) #
-        weekly_count = get_user_weekly_stats(chat_id, user_id) #
-        monthly_count = get_user_monthly_stats(chat_id, user_id) #
-        all_time_count = get_user_all_time_stats(chat_id, user_id) #
-
-        last_active_time = "Нет данных" #
-        if chat_id in user_data and user_id in user_data[chat_id] and 'last_activity' in user_data[chat_id][user_id]: #
-            last_active_time = format_time_ago(user_data[chat_id][user_id]['last_activity']) # Используем новую функцию
-            
-        # Формируем ответ
-        reply_text = ( #
-            f"Ты <b>{username}</b>\n\n" #
-            f"Последний твой актив:\n{last_active_time}\n" #
-            f"Краткая стата (д|н|м|вся):\n{daily_count}|{weekly_count}|{monthly_count}|{all_time_count}" #
-        ) #
-        bot.reply_to(message, reply_text, parse_mode='HTML') #
+        user_id = str(message.from_user.id)
+        chat_id = str(message.chat.id)
+        username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        daily_count = get_user_daily_stats(chat_id, user_id)
+        weekly_count = get_user_weekly_stats(chat_id, user_id)
+        monthly_count = get_user_monthly_stats(chat_id, user_id)
+        all_time_count = get_user_all_time_stats(chat_id, user_id)
+        conn = sqlite3.connect('bot_data.db')
+        cursor = conn.cursor()
+        cursor.execute('SELECT last_activity FROM user_data WHERE chat_id = ? AND user_id = ? LIMIT 1',
+                       (chat_id, user_id))
+        result = cursor.fetchone()
+        last_active_time = format_time_ago(result[0]) if result and result[0] else "Нет данных"
+        conn.close()
+        reply_text = (
+            f"Ты <b>{username}</b>\n\n"
+            f"Последний твой актив:\n{last_active_time}\n"
+            f"Краткая стата (д|н|м|вся):\n{daily_count}|{weekly_count}|{monthly_count}|{all_time_count}"
+        )
+        bot.reply_to(message, reply_text, parse_mode='HTML')
 
     if message.text.upper().startswith('КТО ТЫ'):
         try:
             target_user_id = None
             target_user_name = None
-
             if message.reply_to_message:
                 target_user_id = str(message.reply_to_message.from_user.id)
                 target_user_name = telebot.util.user_link(message.reply_to_message.from_user)
             else:
                 spl = message.text.split()
-                if len(spl) > 2 and spl[2][0] == '@': # Ожидаем "КТО ТЫ @username"
-                    username_from_command = spl[2][1:] # Убираем '@'
-                    # Приводим юзернейм из команды к нижнему регистру перед хешированием
+                if len(spl) > 2 and spl[2][0] == '@':
+                    username_from_command = spl[2][1:]
                     hashed_username = sha(username_from_command.lower())
-                    read_users()
+                    users = read_users()
                     if hashed_username in users:
                         target_user_id = str(users[hashed_username])
                         try:
@@ -650,11 +659,10 @@ def echo_all(message):
                     else:
                         bot.reply_to(message, "Пользователь с таким юзернеймом не найден в моей базе.")
                         return
-                elif len(spl) > 1 and spl[1][0] == '@': # Ожидаем "КТО @username" (для гибкости)
-                    username_from_command = spl[1][1:] # Убираем '@'
-                    # Приводим юзернейм из команды к нижнему регистру перед хешированием
+                elif len(spl) > 1 and spl[1][0] == '@':
+                    username_from_command = spl[1][1:]
                     hashed_username = sha(username_from_command.lower())
-                    read_users()
+                    users = read_users()
                     if hashed_username in users:
                         target_user_id = str(users[hashed_username])
                         try:
@@ -668,20 +676,19 @@ def echo_all(message):
                 else:
                     bot.reply_to(message, "Для команды 'кто ты' необходимо ответить на сообщение пользователя или указать его юзернейм (например, 'кто ты @username').")
                     return
-
             if target_user_id and target_user_name:
                 chat_id = str(message.chat.id)
-
-                # Получаем статистику для целевого пользователя
                 daily_count = get_user_daily_stats(chat_id, target_user_id)
                 weekly_count = get_user_weekly_stats(chat_id, target_user_id)
                 monthly_count = get_user_monthly_stats(chat_id, target_user_id)
                 all_time_count = get_user_all_time_stats(chat_id, target_user_id)
-
-                last_active_time = "Нет данных"
-                if chat_id in user_data and target_user_id in user_data[chat_id] and 'last_activity' in user_data[chat_id][target_user_id]:
-                    last_active_time = format_time_ago(user_data[chat_id][target_user_id]['last_activity']) # Используем новую функцию
-
+                conn = sqlite3.connect('bot_data.db')
+                cursor = conn.cursor()
+                cursor.execute('SELECT last_activity FROM user_data WHERE chat_id = ? AND user_id = ? LIMIT 1',
+                               (chat_id, target_user_id))
+                result = cursor.fetchone()
+                last_active_time = format_time_ago(result[0]) if result and result[0] else "Нет данных"
+                conn.close()
                 reply_text = (
                     f"Это <b>{target_user_name}</b>\n\n"
                     f"Последний актив:\n{last_active_time}\n"
@@ -690,32 +697,30 @@ def echo_all(message):
                 bot.reply_to(message, reply_text, parse_mode='HTML')
             else:
                 bot.reply_to(message, "Не удалось определить целевого пользователя.")
-
         except Exception as e:
             catch_error(message, e)
-
 
     if message.text.upper().startswith("РАНДОМ "):
         try:
             msg = message.text.upper()
             msg = msg.replace("РАНДОМ ", "")
-            min = ""
-            max = ""
+            min_val = ""
+            max_val = ""
             for item in msg:
                 if item != " ":
-                    min += item
+                    min_val += item
                 else:
                     break
-            max = msg.replace(f"{min} ", "")
-            max, min = int(max), int(min)
+            max_val = msg.replace(f"{min_val} ", "")
+            max_val, min_val = int(max_val), int(min_val)
             try:
-                if max < min:
+                if max_val < min_val:
                     bot.reply_to(message, f"Цифарки местами поменяй, олух")
-                if max == min:
+                elif max_val == min_val:
                     bot.reply_to(message, f"Да ты гений я смотрю, умом берёшь.")
                 else:
-                    result = random.randint(min, max)
-                    bot.reply_to(message, f"Случайное число из диапазона [{min}..{max}] выпало на {result}")
+                    result = random.randint(min_val, max_val)
+                    bot.reply_to(message, f"Случайное число из диапазона [{min_val}..{max_val}] выпало на {result}")
             except:
                 return 0
         except:
@@ -738,7 +743,7 @@ def echo_all(message):
                 if message.reply_to_message:
                     user_id = message.reply_to_message.from_user.id
                     if remove_warn(user_id):
-                        bot.reply_to(message, f"Ладно, {get_name(message)}, прощаю последний твой косяк.", parse_mode = 'HTML')
+                        bot.reply_to(message, f"Ладно, {get_name(message)}, прощаю последний твой косяк.", parse_mode='HTML')
                     else:
                         bot.reply_to(message, "Этот человек очень даже хороший в моём видении.")
                 else:
@@ -753,10 +758,10 @@ def echo_all(message):
                 time = get_time(message)
                 if target:
                     if time:
-                        bot.restrict_chat_member(message.chat.id, target, until_date = message.date + time[1])
+                        bot.restrict_chat_member(message.chat.id, target, until_date=message.date + time[1])
                         answer = f'Я заклеил ему рот на {time[0]} {time[2]}. Маловато как по мне, ну ладно.'
                     else:
-                        bot.restrict_chat_member(message.chat.id, target, until_date = message.date)
+                        bot.restrict_chat_member(message.chat.id, target, until_date=message.date)
                         answer = f'Я заклеил ему рот.'
                     try:
                         bot.reply_to(message, answer, parse_mode='HTML')
@@ -767,15 +772,14 @@ def echo_all(message):
         except Exception as e:
             catch_error(message, e)
 
-
     if message.text.upper().startswith('РАЗМУТ'):
         try:
             if have_rights(message):
                 target = get_target(message)
                 if target:
-                    bot.restrict_chat_member(message.chat.id, target, can_send_messages=True
-                    , can_send_other_messages = True, can_send_polls = True
-                    , can_add_web_page_previews = True, until_date = message.date)
+                    bot.restrict_chat_member(message.chat.id, target, can_send_messages=True,
+                                             can_send_other_messages=True, can_send_polls=True,
+                                             can_add_web_page_previews=True, until_date=message.date)
                     bot.reply_to(message, f'''Ладно, так и быть, пусть он говорит.
     ''', parse_mode='HTML')
                 else:
@@ -790,7 +794,6 @@ def echo_all(message):
                 if target:
                     bot.ban_chat_member(message.chat.id, target)
                     bot.unban_chat_member(message.chat.id, target)
-
                     bot.reply_to(message, f'''Этот плохиш был изгнан с сие великой группы.
     ''', parse_mode='HTML')
                 else:
@@ -827,7 +830,7 @@ def echo_all(message):
     if message.text.upper() == '-ЧАТ':
         try:
             if have_rights(message):
-                bot.set_chat_permissions(message.chat.id, telebot.types.ChatPermissions(can_send_messages=False, can_send_other_messages = False, can_send_polls = False))
+                bot.set_chat_permissions(message.chat.id, telebot.types.ChatPermissions(can_send_messages=False, can_send_other_messages=False, can_send_polls=False))
                 bot.reply_to(message, 'Крч вы достали админов господа.. и меня тоже. Закрываем чат..)')
             else:
                 bot.reply_to(message, f'А, ещё.. <tg-spoiler>ПОПЛАЧ)))))</tg-spoiler>', parse_mode='HTML')
@@ -837,12 +840,12 @@ def echo_all(message):
     if message.text.upper() == '+ЧАТ':
         try:
             if have_rights(message):
-                bot.set_chat_permissions(message.chat.id, telebot.types.ChatPermissions(can_send_messages=True, can_send_other_messages = True, can_send_polls = True))
+                bot.set_chat_permissions(message.chat.id, telebot.types.ChatPermissions(can_send_messages=True, can_send_other_messages=True, can_send_polls=True))
                 bot.reply_to(message, 'Ладно, мне надоела тишина. Открываю чат..')
         except Exception as e:
             catch_error(message, e)
 
-    if message.text.upper() == "ПИН" or message.text.upper() == "ЗАКРЕП":
+    if message.text.upper() in ["ПИН", "ЗАКРЕП"]:
         try:
             if have_rights(message):
                 bot.pin_chat_message(message.chat.id, message.reply_to_message.id)
@@ -874,7 +877,7 @@ def echo_all(message):
                 user_id = message.reply_to_message.from_user.id
                 chat_id = message.chat.id
                 bot.promote_chat_member(chat_id, user_id, can_manage_chat=False, can_change_info=False, can_delete_messages=False, can_restrict_members=False, can_invite_users=False, can_pin_messages=False, can_manage_video_chats=False, can_manage_voice_chats=False, can_post_stories=False, can_edit_stories=False, can_delete_stories=False)
-                bot.reply_to(message, "Лох понижен в должности. Теперь его можно не бояться")
+                bot.reply_to(message, "Лох, понижен в должности. Теперь его можно не бояться")
         except:
             return 0
 
@@ -890,7 +893,7 @@ def echo_all(message):
         bot.reply_to(message, '''Помощь по командам:
 
 <blockquote expandable><b>Основные команды бота</b>
-Какая нагрузка - Показывает нагрузку сервера (выполняет команду uptime)
+Какая нагрузка - выполняет команду uptime и отправляет её вывод
 Топ день / Топ дня - Топ пользователей за день в этом чате.
 Топ неделя / Топ недели - Топ пользователей за неделю в этом чате.
 Топ месяц / Топ месяца - Топ пользователей за месяц в этом чате.
@@ -954,7 +957,6 @@ def echo_all(message):
 Шмальнуть
 Засосать
 Лечь
-Сожрать
 Унизить
 Арестовать
 Наорать
@@ -983,7 +985,8 @@ def echo_all(message):
 Выебать мозги
 Переехать
 Цыц
-Цыц!</blockquote>''', parse_mode='HTML')
+Цыц!
+Сожрать</blockquote>''', parse_mode='HTML')
 
 ##############       RP COMMANDS        #################
 
