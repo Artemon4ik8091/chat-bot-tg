@@ -599,6 +599,14 @@ def echo_all(message):
         uptime_output = get_uptime()
         bot.reply_to(message, "Выполняю команду uptime:\n" + uptime_output)
 
+    if message.text.upper().startswith('ИРИС СКАЖИ '):
+        text_to_say = message.text[10:]
+        bot.send_message(message.chat.id, text_to_say)
+
+    if message.text.upper().startswith('ИРИС, СКАЖИ '):
+        text_to_say = message.text[11:]
+        bot.send_message(message.chat.id, text_to_say)
+
     if message.text.upper() == 'ПИНГ':
         bot.reply_to(message, f'ПОНГ')
 
@@ -911,6 +919,7 @@ def echo_all(message):
 Что с ботом? - ..)
 +чат/-чат - Открытие/закрытие чата
 +админ/-админ - Выдача/снятие прав администратора пользователя
+Ирис, скажи - Повторяет за вами (запятая кст не обязательна, но и с ней оно работает)
 </blockquote>
 <blockquote expandable><b>РП-Команды</b>
 Обнять
