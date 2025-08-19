@@ -567,7 +567,7 @@ def handle_top_all_time(message):
 
 @bot.message_handler(commands=['start'])
 def start_message(message):
-    bot.reply_to(message, "Привет, я недо-ирис чат бот. Фанатский форк на Python. Данный бот не имеет ничего общего с командой разработчиков оригинального телеграмм бота Iris. Чтоб вызвать справку отправь .хелп")
+    bot.reply_to(message, "Привет, я Барбариска, ваш чат бот, который поможет модерировать сие прекрасненькую группу. Надеюсь вам будет весело! Чтоб вызвать справку отправь .хелп")
 
 @bot.message_handler(func=lambda message: True)
 def echo_all(message):
@@ -599,12 +599,12 @@ def echo_all(message):
         uptime_output = get_uptime()
         bot.reply_to(message, "Выполняю команду uptime:\n" + uptime_output)
 
-    if message.text.upper().startswith('ИРИС СКАЖИ '):
-        text_to_say = message.text[10:]
+    if message.text.upper().startswith('БАРБАРИС СКАЖИ '):
+        text_to_say = message.text[14:]
         bot.send_message(message.chat.id, text_to_say)
 
-    if message.text.upper().startswith('ИРИС, СКАЖИ '):
-        text_to_say = message.text[11:]
+    if message.text.upper().startswith('БАРБАРИС, СКАЖИ '):
+        text_to_say = message.text[15:]
         bot.send_message(message.chat.id, text_to_say)
 
     if message.text.upper() == 'ПИНГ':
@@ -919,7 +919,7 @@ def echo_all(message):
 Что с ботом? - ..)
 +чат/-чат - Открытие/закрытие чата
 +админ/-админ - Выдача/снятие прав администратора пользователя
-Ирис, скажи - Повторяет за вами (запятая кст не обязательна, но и с ней оно работает)
+Барбарис, скажи - Повторяет за вами (запятая кст не обязательна, но и с ней оно работает)
 </blockquote>
 <blockquote expandable><b>РП-Команды</b>
 Обнять
