@@ -601,11 +601,15 @@ def echo_all(message):
 
     if message.text.upper().startswith('БАРБАРИС СКАЖИ '):
         text_to_say = message.text[14:]
-        bot.send_message(message.chat.id, text_to_say)
+        user = message.from_user.first_name
+        user_id = message.from_user.id
+        bot.send_message(message.chat.id, f"[{user}](tg://user?id={user_id}) заставил меня сказать:{text_to_say}", parse_mode='Markdown')
 
     if message.text.upper().startswith('БАРБАРИС, СКАЖИ '):
         text_to_say = message.text[15:]
-        bot.send_message(message.chat.id, text_to_say)
+        user = message.from_user.first_name
+        user_id = message.from_user.id
+        bot.send_message(message.chat.id, f"[{user}](tg://user?id={user_id}) заставил меня сказать:{text_to_say}", parse_mode='Markdown')
 
     if message.text.upper() == 'ПИНГ':
         bot.reply_to(message, f'ПОНГ')
