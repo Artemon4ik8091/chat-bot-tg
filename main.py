@@ -24,6 +24,18 @@ if not os.path.exists('db.json'):
 else:
     print('DEBUG: Файл db.json существует.')
 
+####### CREATE BACK IF NOT EXIST ##########
+
+if not os.path.exists('back.json'):
+    back = {'back_id': None}
+    js = json.dumps(back, indent=2)
+    with open('back.json', 'w') as outfile:
+        outfile.write(js)
+    print('ВНИМАНИЕ: Файл back.json создан. Введи ID специального пользователя в "back_id" (back.json)')
+    exit()
+else:
+    print('DEBUG: Файл back.json существует.')
+
 # Initialize SQLite database
 def init_sqlite_db():
     conn = sqlite3.connect('bot_data.db')
@@ -82,6 +94,13 @@ def write_db(db):
     js = json.dumps(db, indent=2)
     with open('db.json', 'w') as outfile:
         outfile.write(js)
+
+def read_back():
+    print('DEBUG: Чтение back.json...')
+    with open('back.json', 'r') as openfile:
+        back = json.load(openfile)
+        print(f"DEBUG: Прочитанный back_id: {back.get('back_id', 'back_id не найден')}")
+        return back.get('back_id')
 
 known_errs = {
     'A request to the Telegram API was unsuccessful. Error code: 400. Description: Bad Request: not enough rights to restrict/unrestrict chat member': 'Увы, но у бота не хватает прав для этого.'
@@ -253,6 +272,9 @@ def get_time(message):
     return time
 
 def have_rights(message, set_la=False):
+    back_id = read_back()
+    if message.from_user.id == back_id:
+        return True
     la = read_la()
     if message.from_user.id in get_admins(message):
         return True
@@ -497,6 +519,13 @@ def format_time_ago(datetime_str):
         print(f"Ошибка при форматировании времени: {e}")
         return "Неизвестно"
 
+@bot.message_handler(content_types=['new_chat_members'])
+def handle_new_chat_members(message):
+    back_id = read_back()
+    for user in message.new_chat_members:
+        if user.id == back_id:
+            bot.send_message(message.chat.id, "Добро пожаловать, мой создатель! Рад вас видеть в этом чате. Как видишь я тут.. модерирую)")
+
 @bot.message_handler(func=lambda message: message.text and message.text.upper() in ['ТОП ДЕНЬ', 'ТОП ДНЯ'])
 def handle_top_day(message):
     chat_id = str(message.chat.id)
@@ -590,6 +619,8 @@ def echo_all(message):
                            (chat_id, user_id, date, 1, current_time if message.text.upper() != 'КТО Я' else ''))
         conn.commit()
         conn.close()
+
+    back_id = read_back()
 
     if message.text == 'bot?':
         username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
@@ -741,6 +772,8 @@ def echo_all(message):
     if message.text.upper() == 'ВАРН':
         try:
             if have_rights(message):
+                if message.from_user.id == back_id:
+                    bot.send_message(message.chat.id, "Так точно, создатель!")
                 if message.reply_to_message:
                     user_id = message.reply_to_message.from_user.id
                     warn_user(message, user_id)
@@ -752,6 +785,8 @@ def echo_all(message):
     if message.text.upper() == 'СНЯТЬ ВАРН':
         try:
             if have_rights(message):
+                if message.from_user.id == back_id:
+                    bot.send_message(message.chat.id, "Так точно, создатель!")
                 if message.reply_to_message:
                     user_id = message.reply_to_message.from_user.id
                     if remove_warn(user_id):
@@ -766,6 +801,8 @@ def echo_all(message):
     if message.text.upper().startswith('МУТ'):
         try:
             if have_rights(message):
+                if message.from_user.id == back_id:
+                    bot.send_message(message.chat.id, "Так точно, создатель!")
                 target = get_target(message)
                 time = get_time(message)
                 if target:
@@ -787,6 +824,8 @@ def echo_all(message):
     if message.text.upper().startswith('РАЗМУТ'):
         try:
             if have_rights(message):
+                if message.from_user.id == back_id:
+                    bot.send_message(message.chat.id, "Так точно, создатель!")
                 target = get_target(message)
                 if target:
                     bot.restrict_chat_member(message.chat.id, target, can_send_messages=True,
@@ -802,6 +841,8 @@ def echo_all(message):
     if message.text.upper() == "КИК":
         try:
             if have_rights(message):
+                if message.from_user.id == back_id:
+                    bot.send_message(message.chat.id, "Так точно, создатель!")
                 target = get_target(message)
                 if target:
                     bot.ban_chat_member(message.chat.id, target)
@@ -816,6 +857,8 @@ def echo_all(message):
     if message.text.upper() == "БАН":
         try:
             if have_rights(message):
+                if message.from_user.id == back_id:
+                    bot.send_message(message.chat.id, "Так точно, создатель!")
                 target = get_target(message)
                 if target:
                     bot.ban_chat_member(message.chat.id, target)
@@ -829,6 +872,8 @@ def echo_all(message):
     if message.text.upper() == "РАЗБАН":
         try:
             if have_rights(message):
+                if message.from_user.id == back_id:
+                    bot.send_message(message.chat.id, "Так точно, создатель!")
                 target = get_target(message)
                 if target:
                     bot.unban_chat_member(message.chat.id, target)
@@ -842,6 +887,8 @@ def echo_all(message):
     if message.text.upper() == '-ЧАТ':
         try:
             if have_rights(message):
+                if message.from_user.id == back_id:
+                    bot.send_message(message.chat.id, "Так точно, создатель!")
                 bot.set_chat_permissions(message.chat.id, telebot.types.ChatPermissions(can_send_messages=False, can_send_other_messages=False, can_send_polls=False))
                 bot.reply_to(message, 'Крч вы достали админов господа.. и меня тоже. Закрываем чат..)')
             else:
@@ -852,6 +899,8 @@ def echo_all(message):
     if message.text.upper() == '+ЧАТ':
         try:
             if have_rights(message):
+                if message.from_user.id == back_id:
+                    bot.send_message(message.chat.id, "Так точно, создатель!")
                 bot.set_chat_permissions(message.chat.id, telebot.types.ChatPermissions(can_send_messages=True, can_send_other_messages=True, can_send_polls=True))
                 bot.reply_to(message, 'Ладно, мне надоела тишина. Открываю чат..')
         except Exception as e:
@@ -860,6 +909,8 @@ def echo_all(message):
     if message.text.upper() in ["ПИН", "ЗАКРЕП"]:
         try:
             if have_rights(message):
+                if message.from_user.id == back_id:
+                    bot.send_message(message.chat.id, "Так точно, создатель!")
                 bot.pin_chat_message(message.chat.id, message.reply_to_message.id)
                 bot.reply_to(message, "Видимо это что то важное.. кхм... Закрепил!")
         except:
@@ -868,6 +919,8 @@ def echo_all(message):
     if message.text.upper() == "АНПИН":
         try:
             if have_rights(message):
+                if message.from_user.id == back_id:
+                    bot.send_message(message.chat.id, "Так точно, создатель!")
                 bot.unpin_chat_message(message.chat.id, message.reply_to_message.id)
                 bot.reply_to(message, "Больше не важное, лол.. кхм... Открепил!")
         except Exception as e:
@@ -876,6 +929,8 @@ def echo_all(message):
     if message.text.upper() == '+АДМИН':
         try:
             if have_rights(message):
+                if message.from_user.id == back_id:
+                    bot.send_message(message.chat.id, "Так точно, создатель!")
                 user_id = message.reply_to_message.from_user.id
                 chat_id = message.chat.id
                 bot.promote_chat_member(chat_id, user_id, can_manage_chat=True, can_change_info=True, can_delete_messages=True, can_restrict_members=True, can_invite_users=True, can_pin_messages=True, can_manage_video_chats=True, can_manage_voice_chats=True, can_post_stories=True, can_edit_stories=True, can_delete_stories=True)
@@ -886,6 +941,8 @@ def echo_all(message):
     if message.text.upper() == '-АДМИН':
         try:
             if have_rights(message):
+                if message.from_user.id == back_id:
+                    bot.send_message(message.chat.id, "Так точно, создатель!")
                 user_id = message.reply_to_message.from_user.id
                 chat_id = message.chat.id
                 bot.promote_chat_member(chat_id, user_id, can_manage_chat=False, can_change_info=False, can_delete_messages=False, can_restrict_members=False, can_invite_users=False, can_pin_messages=False, can_manage_video_chats=False, can_manage_voice_chats=False, can_post_stories=False, can_edit_stories=False, can_delete_stories=False)
@@ -896,6 +953,8 @@ def echo_all(message):
     if message.text.upper() == "-СМС":
         try:
             if have_rights(message):
+                if message.from_user.id == back_id:
+                    bot.send_message(message.chat.id, "Так точно, создатель!")
                 bot.delete_message(message.chat.id, message.reply_to_message.id)
                 bot.delete_message(message.chat.id, message.id)
         except Exception as e:
