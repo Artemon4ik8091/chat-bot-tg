@@ -15,26 +15,14 @@ import asyncio
 ####### CREATE DB IF NOT EXIST ##########
 
 if not os.path.exists('db.json'):
-    db = {'token': 'None', 'admin_id_for_errors': None}
+    db = {'token': 'None', 'admin_id_for_errors': None, 'owner_id': None, 'beta_testers': []}
     js = json.dumps(db, indent=2)
     with open('db.json', 'w') as outfile:
         outfile.write(js)
-    print('ВНИМАНИЕ: Файл db.json создан. Введи токен в "None" и свой ID администратора в "admin_id_for_errors" (db.json)')
+    print('ВНИМАНИЕ: Файл db.json создан. Введи токен в "None", свой ID администратора в "admin_id_for_errors", ID владельца в "owner_id" и IDs бета-тестеров в "beta_testers" (db.json)')
     exit()
 else:
     print('DEBUG: Файл db.json существует.')
-
-####### CREATE BACK IF NOT EXIST ##########
-
-if not os.path.exists('back.json'):
-    back = {'back_id': None}
-    js = json.dumps(back, indent=2)
-    with open('back.json', 'w') as outfile:
-        outfile.write(js)
-    print('ВНИМАНИЕ: Файл back.json создан. Введи ID специального пользователя в "back_id" (back.json)')
-    exit()
-else:
-    print('DEBUG: Файл back.json существует.')
 
 # Initialize SQLite database
 def init_sqlite_db():
@@ -95,19 +83,14 @@ def read_db():
     with open('db.json', 'r') as openfile:
         db = json.load(openfile)
         print(f"DEBUG: Прочитанный токен: {db.get('token', 'Токен не найден')}")
+        print(f"DEBUG: Прочитанный owner_id: {db.get('owner_id', 'owner_id не найден')}")
+        print(f"DEBUG: Прочитанные beta_testers: {db.get('beta_testers', 'beta_testers не найдены')}")
         return db
 
 def write_db(db):
     js = json.dumps(db, indent=2)
     with open('db.json', 'w') as outfile:
         outfile.write(js)
-
-def read_back():
-    print('DEBUG: Чтение back.json...')
-    with open('back.json', 'r') as openfile:
-        back = json.load(openfile)
-        print(f"DEBUG: Прочитанный back_id: {back.get('back_id', 'back_id не найден')}")
-        return back.get('back_id')
 
 known_errs = {
     'A request to the Telegram API was unsuccessful. Error code: 400. Description: Bad Request: not enough rights to restrict/unrestrict chat member': 'Увы, но у бота не хватает прав для этого.'
@@ -279,8 +262,9 @@ def get_time(message):
     return time
 
 def have_rights(message, set_la=False):
-    back_id = read_back()
-    if message.from_user.id == back_id:
+    db = read_db()
+    owner_id = db['owner_id']
+    if message.from_user.id == owner_id:
         return True
     la = read_la()
     if message.from_user.id in get_admins(message):
@@ -543,13 +527,14 @@ def get_all_chats():
 
 @bot.message_handler(content_types=['new_chat_members'])
 def handle_new_chat_members(message):
-    back_id = read_back()
+    db = read_db()
+    owner_id = db['owner_id']
     bot_id = bot.get_me().id
     for user in message.new_chat_members:
         if user.id == bot_id:
             chat_title = bot.get_chat(message.chat.id).title
             add_chat_to_db(message.chat.id, chat_title)
-        if user.id == back_id:
+        if user.id == owner_id:
             bot.send_message(message.chat.id, "Добро пожаловать, мой создатель! Рад вас видеть в этом чате. Как видишь я тут.. модерирую)")
 
 @bot.message_handler(func=lambda message: message.text and message.text.upper() in ['ТОП ДЕНЬ', 'ТОП ДНЯ'])
@@ -626,8 +611,9 @@ def start_message(message):
 
 @bot.message_handler(commands=['list'])
 def handle_list(message):
-    back_id = read_back()
-    if message.from_user.id != back_id:
+    db = read_db()
+    owner_id = db['owner_id']
+    if message.from_user.id != owner_id:
         bot.reply_to(message, "Эта команда доступна только владельцу бота.")
         return
     chats = get_all_chats()
@@ -666,7 +652,8 @@ def echo_all(message):
         conn.commit()
         conn.close()
 
-    back_id = read_back()
+    db = read_db()
+    owner_id = db['owner_id']
 
     if message.text == 'bot?':
         username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
@@ -704,6 +691,9 @@ def echo_all(message):
         bot.reply_to(message, f'Да тут я.. отойти даже нельзя блин.. Я ТОЖЕ ИМЕЮ ПРАВО НА ОТДЫХ!')
 
     if message.text.upper() == 'КТО Я':
+        db = read_db()
+        owner_id = db['owner_id']
+        beta_testers = db.get('beta_testers', [])
         user_id = str(message.from_user.id)
         chat_id = str(message.chat.id)
         username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
@@ -718,9 +708,10 @@ def echo_all(message):
         result = cursor.fetchone()
         last_active_time = format_time_ago(result[0]) if result and result[0] else "Нет данных"
         conn.close()
-        owner_text = "\n🌟 Владелец бота" if int(user_id) == back_id else ""
+        owner_text = "\n🌟 Владелец бота" if int(user_id) == owner_id else ""
+        beta_text = "\n💠 Бета-тестер бота" if int(user_id) in beta_testers else ""
         reply_text = (
-            f"Ты <b>{username}</b>{owner_text}\n\n"
+            f"Ты <b>{username}</b>{owner_text}{beta_text}\n\n"
             f"Последний твой актив:\n{last_active_time}\n"
             f"Краткая стата (д|н|м|вся):\n{daily_count}|{weekly_count}|{monthly_count}|{all_time_count}"
         )
@@ -728,6 +719,9 @@ def echo_all(message):
 
     if message.text.upper().startswith('КТО ТЫ'):
         try:
+            db = read_db()
+            owner_id = db['owner_id']
+            beta_testers = db.get('beta_testers', [])
             target_user_id = None
             target_user_name = None
             if message.reply_to_message:
@@ -779,9 +773,10 @@ def echo_all(message):
                 result = cursor.fetchone()
                 last_active_time = format_time_ago(result[0]) if result and result[0] else "Нет данных"
                 conn.close()
-                owner_text = "\n🌟 Владелец бота" if int(target_user_id) == back_id else ""
+                owner_text = "\n🌟 Владелец бота" if int(target_user_id) == owner_id else ""
+                beta_text = "\n💠 Бета-тестер бота" if int(target_user_id) in beta_testers else ""
                 reply_text = (
-                    f"Это <b>{target_user_name}</b>{owner_text}\n\n"
+                    f"Это <b>{target_user_name}</b>{owner_text}{beta_text}\n\n"
                     f"Последний актив:\n{last_active_time}\n"
                     f"Краткая стата (д|н|м|вся):\n{daily_count}|{weekly_count}|{monthly_count}|{all_time_count}"
                 )
@@ -820,7 +815,9 @@ def echo_all(message):
     if message.text.upper() == 'ВАРН':
         try:
             if have_rights(message):
-                if message.from_user.id == back_id:
+                db = read_db()
+                owner_id = db['owner_id']
+                if message.from_user.id == owner_id:
                     bot.send_message(message.chat.id, "Так точно, создатель!")
                 if message.reply_to_message:
                     user_id = message.reply_to_message.from_user.id
@@ -833,7 +830,9 @@ def echo_all(message):
     if message.text.upper() == 'СНЯТЬ ВАРН':
         try:
             if have_rights(message):
-                if message.from_user.id == back_id:
+                db = read_db()
+                owner_id = db['owner_id']
+                if message.from_user.id == owner_id:
                     bot.send_message(message.chat.id, "Так точно, создатель!")
                 if message.reply_to_message:
                     user_id = message.reply_to_message.from_user.id
@@ -849,7 +848,9 @@ def echo_all(message):
     if message.text.upper().startswith('МУТ'):
         try:
             if have_rights(message):
-                if message.from_user.id == back_id:
+                db = read_db()
+                owner_id = db['owner_id']
+                if message.from_user.id == owner_id:
                     bot.send_message(message.chat.id, "Так точно, создатель!")
                 target = get_target(message)
                 time = get_time(message)
@@ -872,7 +873,9 @@ def echo_all(message):
     if message.text.upper().startswith('РАЗМУТ'):
         try:
             if have_rights(message):
-                if message.from_user.id == back_id:
+                db = read_db()
+                owner_id = db['owner_id']
+                if message.from_user.id == owner_id:
                     bot.send_message(message.chat.id, "Так точно, создатель!")
                 target = get_target(message)
                 if target:
@@ -889,7 +892,9 @@ def echo_all(message):
     if message.text.upper() == "КИК":
         try:
             if have_rights(message):
-                if message.from_user.id == back_id:
+                db = read_db()
+                owner_id = db['owner_id']
+                if message.from_user.id == owner_id:
                     bot.send_message(message.chat.id, "Так точно, создатель!")
                 target = get_target(message)
                 if target:
@@ -905,7 +910,9 @@ def echo_all(message):
     if message.text.upper() == "БАН":
         try:
             if have_rights(message):
-                if message.from_user.id == back_id:
+                db = read_db()
+                owner_id = db['owner_id']
+                if message.from_user.id == owner_id:
                     bot.send_message(message.chat.id, "Так точно, создатель!")
                 target = get_target(message)
                 if target:
@@ -920,7 +927,9 @@ def echo_all(message):
     if message.text.upper() == "РАЗБАН":
         try:
             if have_rights(message):
-                if message.from_user.id == back_id:
+                db = read_db()
+                owner_id = db['owner_id']
+                if message.from_user.id == owner_id:
                     bot.send_message(message.chat.id, "Так точно, создатель!")
                 target = get_target(message)
                 if target:
@@ -935,7 +944,9 @@ def echo_all(message):
     if message.text.upper() == '-ЧАТ':
         try:
             if have_rights(message):
-                if message.from_user.id == back_id:
+                db = read_db()
+                owner_id = db['owner_id']
+                if message.from_user.id == owner_id:
                     bot.send_message(message.chat.id, "Так точно, создатель!")
                 bot.set_chat_permissions(message.chat.id, telebot.types.ChatPermissions(can_send_messages=False, can_send_other_messages=False, can_send_polls=False))
                 bot.reply_to(message, 'Крч вы достали админов господа.. и меня тоже. Закрываем чат..)')
@@ -947,7 +958,9 @@ def echo_all(message):
     if message.text.upper() == '+ЧАТ':
         try:
             if have_rights(message):
-                if message.from_user.id == back_id:
+                db = read_db()
+                owner_id = db['owner_id']
+                if message.from_user.id == owner_id:
                     bot.send_message(message.chat.id, "Так точно, создатель!")
                 bot.set_chat_permissions(message.chat.id, telebot.types.ChatPermissions(can_send_messages=True, can_send_other_messages=True, can_send_polls=True))
                 bot.reply_to(message, 'Ладно, мне надоела тишина. Открываю чат..')
@@ -957,7 +970,9 @@ def echo_all(message):
     if message.text.upper() in ["ПИН", "ЗАКРЕП"]:
         try:
             if have_rights(message):
-                if message.from_user.id == back_id:
+                db = read_db()
+                owner_id = db['owner_id']
+                if message.from_user.id == owner_id:
                     bot.send_message(message.chat.id, "Так точно, создатель!")
                 bot.pin_chat_message(message.chat.id, message.reply_to_message.id)
                 bot.reply_to(message, "Видимо это что то важное.. кхм... Закрепил!")
@@ -967,7 +982,9 @@ def echo_all(message):
     if message.text.upper() == "АНПИН":
         try:
             if have_rights(message):
-                if message.from_user.id == back_id:
+                db = read_db()
+                owner_id = db['owner_id']
+                if message.from_user.id == owner_id:
                     bot.send_message(message.chat.id, "Так точно, создатель!")
                 bot.unpin_chat_message(message.chat.id, message.reply_to_message.id)
                 bot.reply_to(message, "Больше не важное, лол.. кхм... Открепил!")
@@ -977,7 +994,9 @@ def echo_all(message):
     if message.text.upper() == '+АДМИН':
         try:
             if have_rights(message):
-                if message.from_user.id == back_id:
+                db = read_db()
+                owner_id = db['owner_id']
+                if message.from_user.id == owner_id:
                     bot.send_message(message.chat.id, "Так точно, создатель!")
                 user_id = message.reply_to_message.from_user.id
                 chat_id = message.chat.id
@@ -989,7 +1008,9 @@ def echo_all(message):
     if message.text.upper() == '-АДМИН':
         try:
             if have_rights(message):
-                if message.from_user.id == back_id:
+                db = read_db()
+                owner_id = db['owner_id']
+                if message.from_user.id == owner_id:
                     bot.send_message(message.chat.id, "Так точно, создатель!")
                 user_id = message.reply_to_message.from_user.id
                 chat_id = message.chat.id
@@ -1001,8 +1022,10 @@ def echo_all(message):
     if message.text.upper() == "-СМС":
         try:
             if have_rights(message):
-                #if message.from_user.id == back_id:
-                    #bot.send_message(message.chat.id, "Так точно, создатель!")
+                db = read_db()
+                owner_id = db['owner_id']
+                if message.from_user.id == owner_id:
+                    bot.send_message(message.chat.id, "Так точно, создатель!")
                 bot.delete_message(message.chat.id, message.reply_to_message.id)
                 bot.delete_message(message.chat.id, message.id)
         except Exception as e:
