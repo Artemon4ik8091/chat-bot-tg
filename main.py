@@ -70,6 +70,14 @@ def init_sqlite_db():
         )
     ''')
     
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS user_profiles (
+            user_id INTEGER PRIMARY KEY,
+            nickname TEXT,
+            description TEXT
+        )
+    ''')
+    
     conn.commit()
     conn.close()
     print('DEBUG: SQLite database initialized.')
@@ -140,6 +148,50 @@ def write_users(hashed_username, user_id):
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
     cursor.execute('INSERT OR REPLACE INTO users (hashed_username, user_id) VALUES (?, ?)', (hashed_username, user_id))
+    conn.commit()
+    conn.close()
+
+def get_nickname(user_id):
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT nickname FROM user_profiles WHERE user_id = ?', (user_id,))
+    result = cursor.fetchone()
+    conn.close()
+    return result[0] if result else None
+
+def set_nickname(user_id, nickname):
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute('INSERT OR REPLACE INTO user_profiles (user_id, nickname) VALUES (?, ?)', (user_id, nickname))
+    conn.commit()
+    conn.close()
+
+def remove_nickname(user_id):
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute('UPDATE user_profiles SET nickname = NULL WHERE user_id = ?', (user_id,))
+    conn.commit()
+    conn.close()
+
+def get_description(user_id):
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT description FROM user_profiles WHERE user_id = ?', (user_id,))
+    result = cursor.fetchone()
+    conn.close()
+    return result[0] if result else None
+
+def set_description(user_id, description):
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute('INSERT OR REPLACE INTO user_profiles (user_id, description) VALUES (?, ?)', (user_id, description))
+    conn.commit()
+    conn.close()
+
+def remove_description(user_id):
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute('UPDATE user_profiles SET description = NULL WHERE user_id = ?', (user_id,))
     conn.commit()
     conn.close()
 
@@ -240,7 +292,10 @@ def get_name(message):
                 return f"@{username}"
             else:
                 return "пользователь"
-        return telebot.util.user_link(message.reply_to_message.from_user)
+        target_user = message.reply_to_message.from_user
+        display_name = get_nickname(target_user.id) or target_user.first_name
+        display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        return f'<a href="tg://user?id={target_user.id}">{display_name}</a>'
     except Exception as e:
         catch_error(message, e)
         return "пользователь"
@@ -452,26 +507,18 @@ print('DEBUG: Бот успешно инициализирован. Запуск
 def get_user_link_sync(user_id, chat_id):
     try:
         member = bot.get_chat_member(chat_id, user_id)
-        first_name = member.user.first_name
-        first_name = first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        display_name = get_nickname(user_id) or member.user.first_name
+        display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
         if member.user.username:
-            return f'<a href="https://t.me/{member.user.username}">{first_name}</a>'
+            # Формируем ссылку вида https://t.me/username
+            username = member.user.username.lstrip('@')  # Убираем @ из ника
+            return f'<a href="https://t.me/{username}">{display_name}</a>'
         else:
-            return first_name
+            # Если ника нет, возвращаем просто имя без ссылки
+            return display_name
     except Exception as e:
         print(f"Error getting user link for ID {user_id} in chat {chat_id}: {e}")
         return f"Пользователь {user_id}"
-
-def get_uptime():
-    try:
-        result = subprocess.run(['uptime'], capture_output=True, text=True, check=True)
-        return result.stdout.strip()
-    except subprocess.CalledProcessError as e:
-        print(f"Ошибка выполнения команды: {e}")
-        return ""
-    except FileNotFoundError:
-        print("Команда 'uptime' не найдена.")
-        return ""
 
 def format_time_ago(datetime_str):
     if not datetime_str:
@@ -552,14 +599,14 @@ def handle_top_day(message):
             text += f"{i+1}. {user_link}: {count} сообщений\n"
             total_messages_chat += count
     text += f"\nВсего сообщений в чате за сегодня: {total_messages_chat}"
-    bot.send_message(message.chat.id, text, parse_mode='HTML', disable_web_page_preview=True)
+    bot.send_message(message.chat.id, text, parse_mode='HTML', disable_web_page_preview=True, disable_notification=True)
 
 @bot.message_handler(func=lambda message: message.text and message.text.upper() in ['ТОП НЕДЕЛЯ', 'ТОП НЕДЕЛИ'])
 def handle_top_week(message):
     chat_id = str(message.chat.id)
     weekly_stats = get_weekly_stats(chat_id)
     sorted_stats = sorted(weekly_stats.items(), key=lambda x: x[1], reverse=True)
-    text = "Топ пользователей за последнюю неделю:\n"
+    text = "Топ пользователей за неделю:\n"
     total_messages_chat = 0
     if not sorted_stats:
         text = "Статистика за неделю пока пуста."
@@ -569,14 +616,14 @@ def handle_top_week(message):
             text += f"{i+1}. {user_link}: {count} сообщений\n"
             total_messages_chat += count
     text += f"\nВсего сообщений в чате за неделю: {total_messages_chat}"
-    bot.send_message(message.chat.id, text, parse_mode='HTML', disable_web_page_preview=True)
+    bot.send_message(message.chat.id, text, parse_mode='HTML', disable_web_page_preview=True, disable_notification=True)
 
 @bot.message_handler(func=lambda message: message.text and message.text.upper() in ['ТОП МЕСЯЦ', 'ТОП МЕСЯЦА'])
 def handle_top_month(message):
     chat_id = str(message.chat.id)
     monthly_stats = get_monthly_stats(chat_id)
     sorted_stats = sorted(monthly_stats.items(), key=lambda x: x[1], reverse=True)
-    text = "Топ пользователей за последний месяц:\n"
+    text = "Топ пользователей за месяц:\n"
     total_messages_chat = 0
     if not sorted_stats:
         text = "Статистика за месяц пока пуста."
@@ -586,24 +633,24 @@ def handle_top_month(message):
             text += f"{i+1}. {user_link}: {count} сообщений\n"
             total_messages_chat += count
     text += f"\nВсего сообщений в чате за месяц: {total_messages_chat}"
-    bot.send_message(message.chat.id, text, parse_mode='HTML', disable_web_page_preview=True)
+    bot.send_message(message.chat.id, text, parse_mode='HTML', disable_web_page_preview=True, disable_notification=True)
 
-@bot.message_handler(func=lambda message: message.text and message.text.upper() in ['ТОП ВСЕ', 'ТОП ВСЯ'])
+@bot.message_handler(func=lambda message: message.text and message.text.upper() in ['ТОП', 'ТОП ВСЯ'])
 def handle_top_all_time(message):
     chat_id = str(message.chat.id)
     all_time_stats = get_all_time_stats(chat_id)
     sorted_stats = sorted(all_time_stats.items(), key=lambda x: x[1], reverse=True)
-    text = "Топ пользователей за все время:\n"
+    text = "Топ пользователей за всё время:\n"
     total_messages_chat = 0
     if not sorted_stats:
-        text = "Статистика за все время пока пуста."
+        text = "Статистика за всё время пока пуста."
     else:
         for i, (user_id, count) in enumerate(sorted_stats):
             user_link = get_user_link_sync(int(user_id), message.chat.id)
             text += f"{i+1}. {user_link}: {count} сообщений\n"
             total_messages_chat += count
-    text += f"\nВсего сообщений в чате за все время: {total_messages_chat}"
-    bot.send_message(message.chat.id, text, parse_mode='HTML', disable_web_page_preview=True)
+    text += f"\nВсего сообщений в чате за всё время: {total_messages_chat}"
+    bot.send_message(message.chat.id, text, parse_mode='HTML', disable_web_page_preview=True, disable_notification=True)
 
 @bot.message_handler(commands=['start'])
 def start_message(message):
@@ -694,9 +741,12 @@ def echo_all(message):
         db = read_db()
         owner_id = db['owner_id']
         beta_testers = db.get('beta_testers', [])
-        user_id = str(message.from_user.id)
+        user_id = message.from_user.id
         chat_id = str(message.chat.id)
-        username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        member = bot.get_chat_member(message.chat.id, user_id)
+        display_name = get_nickname(user_id) or member.user.first_name
+        display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        username = f'<a href="tg://user?id={user_id}">{display_name}</a>'
         daily_count = get_user_daily_stats(chat_id, user_id)
         weekly_count = get_user_weekly_stats(chat_id, user_id)
         monthly_count = get_user_monthly_stats(chat_id, user_id)
@@ -710,8 +760,9 @@ def echo_all(message):
         conn.close()
         owner_text = "\n🌟 Владелец бота" if int(user_id) == owner_id else ""
         beta_text = "\n💠 Бета-тестер бота" if int(user_id) in beta_testers else ""
+        description_text = f"\n📝 {get_description(user_id)}" if get_description(user_id) else ""
         reply_text = (
-            f"Ты <b>{username}</b>{owner_text}{beta_text}\n\n"
+            f"Ты <b>{username}</b>{owner_text}{beta_text}{description_text}\n\n"
             f"Последний твой актив:\n{last_active_time}\n"
             f"Краткая стата (д|н|м|вся):\n{daily_count}|{weekly_count}|{monthly_count}|{all_time_count}"
         )
@@ -725,8 +776,11 @@ def echo_all(message):
             target_user_id = None
             target_user_name = None
             if message.reply_to_message:
-                target_user_id = str(message.reply_to_message.from_user.id)
-                target_user_name = telebot.util.user_link(message.reply_to_message.from_user)
+                target_user_id = message.reply_to_message.from_user.id
+                member = bot.get_chat_member(message.chat.id, target_user_id)
+                display_name = get_nickname(target_user_id) or member.user.first_name
+                display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                target_user_name = f'<a href="tg://user?id={target_user_id}">{display_name}</a>'
             else:
                 spl = message.text.split()
                 if len(spl) > 2 and spl[2][0] == '@':
@@ -734,12 +788,11 @@ def echo_all(message):
                     hashed_username = sha(username_from_command.lower())
                     users = read_users()
                     if hashed_username in users:
-                        target_user_id = str(users[hashed_username])
-                        try:
-                            member = bot.get_chat_member(message.chat.id, int(target_user_id))
-                            target_user_name = telebot.util.user_link(member.user)
-                        except Exception:
-                            target_user_name = f"@{username_from_command}"
+                        target_user_id = users[hashed_username]
+                        member = bot.get_chat_member(message.chat.id, target_user_id)
+                        display_name = get_nickname(target_user_id) or member.user.first_name
+                        display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                        target_user_name = f'<a href="tg://user?id={target_user_id}">{display_name}</a>'
                     else:
                         bot.reply_to(message, "Пользователь с таким юзернеймом не найден в моей базе.")
                         return
@@ -748,12 +801,11 @@ def echo_all(message):
                     hashed_username = sha(username_from_command.lower())
                     users = read_users()
                     if hashed_username in users:
-                        target_user_id = str(users[hashed_username])
-                        try:
-                            member = bot.get_chat_member(message.chat.id, int(target_user_id))
-                            target_user_name = telebot.util.user_link(member.user)
-                        except Exception:
-                            target_user_name = f"@{username_from_command}"
+                        target_user_id = users[hashed_username]
+                        member = bot.get_chat_member(message.chat.id, target_user_id)
+                        display_name = get_nickname(target_user_id) or member.user.first_name
+                        display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                        target_user_name = f'<a href="tg://user?id={target_user_id}">{display_name}</a>'
                     else:
                         bot.reply_to(message, "Пользователь с таким юзернеймом не найден в моей базе.")
                         return
@@ -775,8 +827,9 @@ def echo_all(message):
                 conn.close()
                 owner_text = "\n🌟 Владелец бота" if int(target_user_id) == owner_id else ""
                 beta_text = "\n💠 Бета-тестер бота" if int(target_user_id) in beta_testers else ""
+                description_text = f"\n📝 {get_description(target_user_id)}" if get_description(target_user_id) else ""
                 reply_text = (
-                    f"Это <b>{target_user_name}</b>{owner_text}{beta_text}\n\n"
+                    f"Это <b>{target_user_name}</b>{owner_text}{beta_text}{description_text}\n\n"
                     f"Последний актив:\n{last_active_time}\n"
                     f"Краткая стата (д|н|м|вся):\n{daily_count}|{weekly_count}|{monthly_count}|{all_time_count}"
                 )
@@ -1031,10 +1084,36 @@ def echo_all(message):
         except Exception as e:
             catch_error(message, e)
 
+    if message.text.upper().startswith('+НИК '):
+        nick = message.text[5:].strip()
+        if nick:
+            set_nickname(message.from_user.id, nick)
+            bot.reply_to(message, f"Ник установлен: {nick}")
+        else:
+            bot.reply_to(message, "Укажите ник после +ник")
+
+    if message.text.upper() == '-НИК':
+        remove_nickname(message.from_user.id)
+        bot.reply_to(message, "Ник сброшен")
+
+    if message.text.upper().startswith('+ОПИСАНИЕ '):
+        desc = message.text[10:].strip()
+        if desc:
+            set_description(message.from_user.id, desc)
+            bot.reply_to(message, f"Описание установлено: {desc}")
+        else:
+            bot.reply_to(message, "Укажите описание после +описание")
+
+    if message.text.upper() == '-ОПИСАНИЕ':
+        remove_description(message.from_user.id)
+        bot.reply_to(message, "Описание сброшено")
+
     if message.text.upper() == ".ХЕЛП":
         bot.reply_to(message, '''Помощь по командам:
 
 <blockquote expandable><b>Основные команды бота</b>
++ник {ник} / -ник - Установить/сбросить кастомный ник (отображается в топе и РП)
++описание {описание} / -описание - Установить/сбросить описание (отображается в кто я/кто ты)
 Какая нагрузка - выполняет команду uptime и отправляет её вывод
 Топ день / Топ дня - Топ пользователей за день в этом чате.
 Топ неделя / Топ недели - Топ пользователей за неделю в этом чате.
@@ -1136,11 +1215,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
             match = re.match(r'\bСАМООТСОС\b\s*(.*)', message.text, re.IGNORECASE)
             if match:
-                username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+                display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
                 # Извлекаем фразу, которая теперь будет в оригинальном регистре
                 user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
                 # Формируем ответ
-                response_text = f'Великий одиночка {username} отсосал сам у себя от отчаяния.'
+                response_text = f'Великий одиночка {display_name} отсосал сам у себя от отчаяния.'
                 if user_phrase: # Добавляем фразу, только если она есть
                     response_text += f'\nСо словами: {user_phrase}'
                 try:
@@ -1151,11 +1231,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bПОВЕСИТЬСЯ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username},\n\nF.'
+            response_text = f'{display_name},\n\nF.'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1172,11 +1253,12 @@ def echo_all(message):
         if message.reply_to_message: # Новая проверка
             match = re.match(r'\bОБНЯТЬ\b\s*(.*)', message.text, re.IGNORECASE)
             if match:
-                username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+                display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
                 # Извлекаем фразу, которая теперь будет в оригинальном регистре
                 user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
                 # Формируем ответ
-                response_text = f'{username} крепко обнял {get_name(message)}'
+                response_text = f'{display_name} крепко обнял {get_name(message)}'
                 if user_phrase: # Добавляем фразу, только если она есть
                     response_text += f'\nСо словами: {user_phrase}'
                 try:
@@ -1187,26 +1269,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bПОЦЕЛОВАТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} затяжно поцеловал {get_name(message)}'
-            if user_phrase: # Добавляем фразу, только если она есть
-                response_text += f'\nСо словами: {user_phrase}'
-            try:
-                bot.reply_to(message, response_text, parse_mode='HTML')
-            except Exception as e:
-                catch_error(message, e)
-
-    if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'\bДАТЬ ПЯТЬ\b\s*(.*)', message.text, re.IGNORECASE)
-        if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-            # Извлекаем фразу, которая теперь будет в оригинальном регистре
-            user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-            # Формируем ответ
-            response_text = f'{username} круто дал пять {get_name(message)}'
+            response_text = f'{display_name} нежно поцеловал {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1217,11 +1285,44 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bПОГЛАДИТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} нежненько погладил {get_name(message)}'
+            response_text = f'{display_name} погладил {get_name(message)}'
+            if user_phrase: # Добавляем фразу, только если она есть
+                response_text += f'\nСо словами: {user_phrase}'
+            try:
+                bot.reply_to(message, response_text, parse_mode='HTML')
+            except Exception as e:
+                catch_error(message, e)
+
+    if message.text: # Убедимся, что сообщение не пустое
+        match = re.match(r'\bПОКОРМИТЬ\b\s*(.*)', message.text, re.IGNORECASE)
+        if match:
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            # Извлекаем фразу, которая теперь будет в оригинальном регистре
+            user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            # Формируем ответ
+            response_text = f'{display_name} покормил {get_name(message)}'
+            if user_phrase: # Добавляем фразу, только если она есть
+                response_text += f'\nСо словами: {user_phrase}'
+            try:
+                bot.reply_to(message, response_text, parse_mode='HTML')
+            except Exception as e:
+                catch_error(message, e)
+
+    if message.text: # Убедимся, что сообщение не пустое
+        match = re.match(r'\bДАТЬ ПЯТЬ\b\s*(.*)', message.text, re.IGNORECASE)
+        if match:
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            # Извлекаем фразу, которая теперь будет в оригинальном регистре
+            user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            # Формируем ответ
+            response_text = f'{display_name} дал пять {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1232,11 +1333,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bПОЗДРАВИТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} феерично поздравил {get_name(message)}'
+            response_text = f'{display_name} поздравил {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1247,11 +1349,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bПРИЖАТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} прижал к стеночке~~ {get_name(message)}'
+            response_text = f'{display_name} прижал {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1262,11 +1365,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bПНУТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} пнул под зад {get_name(message)}'
+            response_text = f'{display_name} пнул {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1277,61 +1381,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bРАССТРЕЛЯТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} расстрелял со всего что было {get_name(message)}'
-            if user_phrase: # Добавляем фразу, только если она есть
-                response_text += f'\nСо словами: {user_phrase}'
-            try:
-                bot.reply_to(message, response_text, parse_mode='HTML')
-            except Exception as e:
-                catch_error(message, e)
-
-    if message.text.upper() == 'МОЙ' and message.reply_to_message:
-        username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-        response_text = f'{username} зацеловал до смерти, утащил к себе и приковал к батарее {get_name(message)}'
-        try:
-            print(f"DEBUG: Отправка response_text: {response_text}")
-            bot.reply_to(message, response_text, parse_mode='HTML')
-        except Exception as e:
-            catch_error(message, e)
-        return
-
-    if message.text.upper() == 'МОЯ' and message.reply_to_message:
-        username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-        response_text = f'{username} зацеловал до смерти, утащил к себе и приковал к батарее {get_name(message)}'
-        try:
-            print(f"DEBUG: Отправка response_text: {response_text}")
-            bot.reply_to(message, response_text, parse_mode='HTML')
-        except Exception as e:
-            catch_error(message, e)
-        return
-
-    if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'\bПОКОРМИТЬ\b\s*(.*)', message.text, re.IGNORECASE)
-        if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-            # Извлекаем фразу, которая теперь будет в оригинальном регистре
-            user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-            # Формируем ответ
-            response_text = f'{username} вкусно накормил {get_name(message)}'
-            if user_phrase: # Добавляем фразу, только если она есть
-                response_text += f'\nСо словами: {user_phrase}'
-            try:
-                bot.reply_to(message, response_text, parse_mode='HTML')
-            except Exception as e:
-                catch_error(message, e)
-
-    if message.text: # Убедимся, что сообщение не пустое
-        match = re.match(r'\bПОТРОГАТЬ\b\s*(.*)', message.text, re.IGNORECASE)
-        if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-            # Извлекаем фразу, которая теперь будет в оригинальном регистре
-            user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-            # Формируем ответ
-            response_text = f'{username} аккуратно потрогал {get_name(message)}'
+            response_text = f'{display_name} расстрелял {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1342,11 +1397,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bИСПУГАТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} напугал до мурашек {get_name(message)}'
+            response_text = f'{display_name} испугал {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1357,11 +1413,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bИЗНАСИЛОВАТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} внезапно и принудительно изнасиловал {get_name(message)}'
+            response_text = f'{display_name} изнасиловал {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1372,11 +1429,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bОТДАТЬСЯ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} добровольно и полностью отдался {get_name(message)}. Хорошего вечера вам)'
+            response_text = f'{display_name} отдался {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1387,11 +1445,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bОТРАВИТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} безжалостно отравил чем то {get_name(message)}'
+            response_text = f'{display_name} отравил {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1402,28 +1461,14 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bУДАРИТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-            # Извлекаем фразу, которая будет в оригинальном регистре
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-
-            # Логика случайного выбора части тела (без изменений)
-            rand = random.randint(1, 5)
-            if (rand == 1):
-                work = "в глаз"
-            elif (rand == 2):
-                work = "по щеке"
-            elif (rand == 3):
-                work = "в челюсть"
-            elif (rand == 4):
-                work = "в живот"
-            elif (rand == 5):
-                work = "по виску"
-
             # Формируем ответ
-            response_text = f'{username} ударил {get_name(message)} и попал {work}'
+            response_text = f'{display_name} ударил {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
-
             try:
                 bot.reply_to(message, response_text, parse_mode='HTML')
             except Exception as e:
@@ -1432,11 +1477,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bУБИТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} жестоко убил {get_name(message)}'
+            response_text = f'{display_name} убил {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1447,11 +1493,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bПОНЮХАТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} аккуратненько понюхал {get_name(message)}'
+            response_text = f'{display_name} понюхал {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1462,11 +1509,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bКАСТРИРОВАТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} лишил яек (и наследства) {get_name(message)}'
+            response_text = f'{display_name} кастрировал {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1477,11 +1525,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bЗАБРАТЬ В РАБСТВО\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} забрал к себе в свои рабы {get_name(message)}'
+            response_text = f'{display_name} забрал к себе в свои рабы {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1492,11 +1541,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bПОЖАТЬ РУКУ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} крепко и с уважением пожал руку {get_name(message)}'
+            response_text = f'{display_name} крепко и с уважением пожал руку {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1508,11 +1558,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bПРИГЛАСИТЬ НА ЧАЙ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} пригласил к себе попить чаёчку {get_name(message)}'
+            response_text = f'{display_name} пригласил к себе попить чаёчку {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1523,11 +1574,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bКУСЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} кусьнул {get_name(message)}'
+            response_text = f'{display_name} кусьнул {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1538,11 +1590,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bОТСОСАТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} глубоко отсосал у {get_name(message)}'
+            response_text = f'{display_name} глубоко отсосал у {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1553,11 +1606,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bВЫЕБАТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} аккуратненько так вошёл в {get_name(message)}'
+            response_text = f'{display_name} аккуратненько так вошёл в {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1568,11 +1622,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bИЗВИНИТЬСЯ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} раскаялся перед {get_name(message)}'
+            response_text = f'{display_name} раскаялся перед {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1583,11 +1638,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bЛИЗНУТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} облизнул {get_name(message)}'
+            response_text = f'{display_name} облизнул {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1598,11 +1654,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bШЛЁПНУТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} шлёпнул {get_name(message)}'
+            response_text = f'{display_name} шлёпнул {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1613,11 +1670,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bПОСЛАТЬ НАХУЙ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} послал куда подальше {get_name(message)}'
+            response_text = f'{display_name} послал куда подальше {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1628,11 +1686,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bТП\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} магическим образом тепнулся к {get_name(message)}'
+            response_text = f'{display_name} магическим образом тепнулся к {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1643,11 +1702,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bПОХВАЛИТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} радостно похвалил {get_name(message)}'
+            response_text = f'{display_name} радостно похвалил {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1658,11 +1718,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bСЖЕЧЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} сжёг до тла {get_name(message)}'
+            response_text = f'{display_name} сжёг до тла {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1673,11 +1734,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bТРАХНУТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} в ускоренном ритме побывал в {get_name(message)}'
+            response_text = f'{display_name} в ускоренном ритме побывал в {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1688,11 +1750,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bУЩИПНУТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} неожиданно ущипнул {get_name(message)}'
+            response_text = f'{display_name} неожиданно ущипнул {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1703,7 +1766,8 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bУЕБАТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
 
@@ -1721,7 +1785,7 @@ def echo_all(message):
                 work = "по виску"
 
             # Формируем ответ
-            response_text = f'{username} уебал со всей дури {get_name(message)} и попал {work}'
+            response_text = f'{display_name} уебал со всей дури {get_name(message)} и попал {work}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
 
@@ -1733,11 +1797,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bПОМЕРИТЬСЯ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} померился хозяйством с {get_name(message)}'
+            response_text = f'{display_name} померился хозяйством с {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1748,7 +1813,8 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bОБКОНЧАТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
 
@@ -1770,7 +1836,7 @@ def echo_all(message):
                 work = "на животик"
 
             # Формируем ответ
-            response_text = f'{username} смачно накончал {work} {get_name(message)}'
+            response_text = f'{display_name} смачно накончал {work} {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
 
@@ -1782,11 +1848,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bЗАПИСАТЬ НА НОГОТОЧКИ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} записал на маник {get_name(message)}'
+            response_text = f'{display_name} записал на маник {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1797,11 +1864,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bДЕЛАТЬ СЕКС\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} уединился с {get_name(message)}'
+            response_text = f'{display_name} уединился с {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1812,11 +1880,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bСВЯЗАТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} крепко связал {get_name(message)}'
+            response_text = f'{display_name} крепко связал {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1827,11 +1896,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bЗАСТАВИТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} принудительно заставил {get_name(message)}'
+            response_text = f'{display_name} принудительно заставил {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1842,11 +1912,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bПОВЕСИТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} превратил в черешенку {get_name(message)}'
+            response_text = f'{display_name} превратил в черешенку {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1857,11 +1928,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bУНИЧТОЖИТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} низвёл до атомов.. ну или аннигилировал {get_name(message)}'
+            response_text = f'{display_name} низвёл до атомов.. ну или аннигилировал {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1872,11 +1944,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bПРОДАТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} продал за дёшево {get_name(message)}'
+            response_text = f'{display_name} продал за дёшево {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1887,11 +1960,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bЩЕКОТАТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} щекотками довёл до истирического смеха {get_name(message)}'
+            response_text = f'{display_name} щекотками довёл до истирического смеха {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1902,11 +1976,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bВЗОРВАТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} заминировал и подорвал {get_name(message)}'
+            response_text = f'{display_name} заминировал и подорвал {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1917,11 +1992,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bШМАЛЬНУТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} шмальнул {get_name(message)} и тот улетел ну ооооооочень далеко'
+            response_text = f'{display_name} шмальнул {get_name(message)} и тот улетел ну ооооооочень далеко'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1932,11 +2008,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bЗАСОСАТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} оставил отметку в виде засоса у {get_name(message)}'
+            response_text = f'{display_name} оставил отметку в виде засоса у {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1947,11 +2024,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bЛЕЧЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} прилёг рядом с {get_name(message)}'
+            response_text = f'{display_name} прилёг рядом с {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1962,11 +2040,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bУНИЗИТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} унизил ниже плинтуса {get_name(message)}'
+            response_text = f'{display_name} унизил ниже плинтуса {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1977,11 +2056,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bАРЕСТОВАТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'Походу кто то мусорнулся и {username} арестовал {get_name(message)}'
+            response_text = f'Походу кто то мусорнулся и {display_name} арестовал {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1992,11 +2072,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bНАОРАТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} очень громко наорал на {get_name(message)}'
+            response_text = f'{display_name} очень громко наорал на {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -2007,11 +2088,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bРАССМЕШИТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'Юморист {username} чуть ли не до смерти рассмешил {get_name(message)}'
+            response_text = f'Юморист {display_name} чуть ли не до смерти рассмешил {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -2022,11 +2104,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bУШАТАТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} к хренам ушатал {get_name(message)}'
+            response_text = f'{display_name} к хренам ушатал {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -2037,11 +2120,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bПОРВАТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} порвал {get_name(message)} как Тузик грелку'
+            response_text = f'{display_name} порвал {get_name(message)} как Тузик грелку'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -2052,11 +2136,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bВЫКОПАТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} нашёл археологическую ценность в виде {get_name(message)}'
+            response_text = f'{display_name} нашёл археологическую ценность в виде {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -2067,11 +2152,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bСОЖРАТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} кусьн.. СОЖРАЛ НАХРЕН {get_name(message)}'
+            response_text = f'{display_name} кусьн.. СОЖРАЛ НАХРЕН {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -2082,11 +2168,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bПОДСТРИЧЬ НАЛЫСО\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'Недо-меллстрой под ником {username} подстриг налысо {get_name(message)} за НИ-ЧЕ-ГО'
+            response_text = f'Недо-меллстрой под ником {display_name} подстриг налысо {get_name(message)} за НИ-ЧЕ-ГО'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -2097,11 +2184,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bВЫЕБАТЬ МОЗГИ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} конкретно так заебал {get_name(message)} и, заодно, трахнул мозги'
+            response_text = f'{display_name} конкретно так заебал {get_name(message)} и, заодно, трахнул мозги'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -2112,11 +2200,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bПЕРЕЕХАТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} пару раз переехал {get_name(message)}'
+            response_text = f'{display_name} пару раз переехал {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -2127,11 +2216,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bВЫПОРОТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} выпорол до красна {get_name(message)}'
+            response_text = f'{display_name} выпорол до красна {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -2142,11 +2232,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bЗАКОПАТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} похоронил заживо {get_name(message)}'
+            response_text = f'{display_name} похоронил заживо {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -2157,11 +2248,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bПОЩУПАТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} тщательно пощупал всего {get_name(message)}'
+            response_text = f'{display_name} тщательно пощупал всего {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -2172,11 +2264,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bПОДРОЧИТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} передёрнул {get_name(message)}'
+            response_text = f'{display_name} передёрнул {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -2187,11 +2280,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bПОТИСКАТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} потискал {get_name(message)} за его мягкие щёчки. Милотаа..'
+            response_text = f'{display_name} потискал {get_name(message)} за его мягкие щёчки. Милотаа..'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -2202,11 +2296,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bПОДАРИТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} подарил от всего сердца подарочек {get_name(message)}'
+            response_text = f'{display_name} подарил от всего сердца подарочек {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -2217,11 +2312,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bВЫПИТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} разделил пару бокалов с {get_name(message)}'
+            response_text = f'{display_name} разделил пару бокалов с {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -2232,11 +2328,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bНАКАЗАТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'Суровый {username} наказал проказника {get_name(message)}'
+            response_text = f'Суровый {display_name} наказал проказника {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -2247,11 +2344,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bРАЗОРВАТЬ ОЧКО\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} порвал напрочь задний проход {get_name(message)}'
+            response_text = f'{display_name} порвал напрочь задний проход {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -2262,11 +2360,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bДОВЕСТИ ДО СКВИРТА\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} довёл до мощного и струйного фонтана {get_name(message)}'
+            response_text = f'{display_name} довёл до мощного и струйного фонтана {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -2277,11 +2376,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bНАПОИТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} споил в стельку {get_name(message)}'
+            response_text = f'{display_name} споил в стельку {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -2290,8 +2390,9 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text.upper() == 'ЦЫЦ!' and message.reply_to_message:
-        username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-        response_text = f'Уууу.. {username} закрыл ротик {get_name(message)} и привязал к кроватке. Знаешь.. я не думаю что тебе что то хорошее светит.. а хотя может.. хз крч.'
+        display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+        display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        response_text = f'Уууу.. {display_name} закрыл ротик {get_name(message)} и привязал к кроватке. Знаешь.. я не думаю что тебе что то хорошее светит.. а хотя может.. хз крч.'
         try:
             print(f"DEBUG: Отправка response_text: {response_text}")
             bot.reply_to(message, response_text, parse_mode='HTML')
@@ -2300,8 +2401,9 @@ def echo_all(message):
         return
 
     if message.text.upper() == 'ЦЫЦ' and message.reply_to_message:
-        username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-        response_text = f'{username} заткнул {get_name(message)} используя кляп и кинул в подвал. А нехер выделываться было.'
+        display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+        display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        response_text = f'{display_name} заткнул {get_name(message)} используя кляп и кинул в подвал. А нехер выделываться было.'
         try:
             print(f"DEBUG: Отправка response_text: {response_text}")
             bot.reply_to(message, response_text, parse_mode='HTML')
@@ -2312,11 +2414,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bОТПРАВИТЬ В ДУРКУ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{username} отправил прямиком в диспансер {get_name(message)}. Шизоид, быстро в палату!'
+            response_text = f'{display_name} отправил прямиком в диспансер {get_name(message)}. Шизоид, быстро в палату!'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -2327,11 +2430,12 @@ def echo_all(message):
     if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bОТОРВАТЬ ЧЛЕН\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
-            username = message.from_user.first_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'АЙ..\n\n<tg-spoiler>{username} оторвал к херам наследство у {get_name(message)}.</tg-spoiler>'
+            response_text = f'АЙ..\n\n<tg-spoiler>{display_name} оторвал к херам наследство у {get_name(message)}.</tg-spoiler>'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
