@@ -75,6 +75,13 @@ def init_sqlite_db():
         )
     ''')
     
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS chats (
+            chat_id TEXT PRIMARY KEY,
+            chat_title TEXT
+        )
+    ''')
+    
     conn.commit()
     conn.close()
     print('DEBUG: SQLite database initialized.')
@@ -519,10 +526,29 @@ def format_time_ago(datetime_str):
         print(f"Ошибка при форматировании времени: {e}")
         return "Неизвестно"
 
+def add_chat_to_db(chat_id, chat_title):
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute('INSERT OR REPLACE INTO chats (chat_id, chat_title) VALUES (?, ?)', (str(chat_id), chat_title))
+    conn.commit()
+    conn.close()
+
+def get_all_chats():
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT chat_id FROM chats')
+    chats = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    return chats
+
 @bot.message_handler(content_types=['new_chat_members'])
 def handle_new_chat_members(message):
     back_id = read_back()
+    bot_id = bot.get_me().id
     for user in message.new_chat_members:
+        if user.id == bot_id:
+            chat_title = bot.get_chat(message.chat.id).title
+            add_chat_to_db(message.chat.id, chat_title)
         if user.id == back_id:
             bot.send_message(message.chat.id, "Добро пожаловать, мой создатель! Рад вас видеть в этом чате. Как видишь я тут.. модерирую)")
 
@@ -598,6 +624,26 @@ def handle_top_all_time(message):
 def start_message(message):
     bot.reply_to(message, "Привет, я Барбариска, ваш чат бот, который поможет модерировать сие прекрасненькую группу. Надеюсь вам будет весело! Чтоб вызвать справку отправь .хелп")
 
+@bot.message_handler(commands=['list'])
+def handle_list(message):
+    back_id = read_back()
+    if message.from_user.id != back_id:
+        bot.reply_to(message, "Эта команда доступна только владельцу бота.")
+        return
+    chats = get_all_chats()
+    if not chats:
+        bot.send_message(message.chat.id, "Бот не добавлен ни в один чат.")
+        return
+    text = f"Список чатов ({len(chats)}):\n"
+    for chat_id in chats:
+        try:
+            chat = bot.get_chat(int(chat_id))
+            title = chat.title or "Private Chat"
+            text += f"- {title} (ID: {chat_id})\n"
+        except Exception as e:
+            text += f"- Chat ID: {chat_id} (Ошибка получения названия: {e})\n"
+    bot.send_message(message.chat.id, text)
+
 @bot.message_handler(func=lambda message: True)
 def echo_all(message):
     analytic(message)
@@ -672,8 +718,9 @@ def echo_all(message):
         result = cursor.fetchone()
         last_active_time = format_time_ago(result[0]) if result and result[0] else "Нет данных"
         conn.close()
+        owner_text = "\n🌟 Владелец бота" if int(user_id) == back_id else ""
         reply_text = (
-            f"Ты <b>{username}</b>\n\n"
+            f"Ты <b>{username}</b>{owner_text}\n\n"
             f"Последний твой актив:\n{last_active_time}\n"
             f"Краткая стата (д|н|м|вся):\n{daily_count}|{weekly_count}|{monthly_count}|{all_time_count}"
         )
@@ -732,8 +779,9 @@ def echo_all(message):
                 result = cursor.fetchone()
                 last_active_time = format_time_ago(result[0]) if result and result[0] else "Нет данных"
                 conn.close()
+                owner_text = "\n🌟 Владелец бота" if int(target_user_id) == back_id else ""
                 reply_text = (
-                    f"Это <b>{target_user_name}</b>\n\n"
+                    f"Это <b>{target_user_name}</b>{owner_text}\n\n"
                     f"Последний актив:\n{last_active_time}\n"
                     f"Краткая стата (д|н|м|вся):\n{daily_count}|{weekly_count}|{monthly_count}|{all_time_count}"
                 )
@@ -953,8 +1001,8 @@ def echo_all(message):
     if message.text.upper() == "-СМС":
         try:
             if have_rights(message):
-                if message.from_user.id == back_id:
-                    bot.send_message(message.chat.id, "Так точно, создатель!")
+                #if message.from_user.id == back_id:
+                    #bot.send_message(message.chat.id, "Так точно, создатель!")
                 bot.delete_message(message.chat.id, message.reply_to_message.id)
                 bot.delete_message(message.chat.id, message.id)
         except Exception as e:
