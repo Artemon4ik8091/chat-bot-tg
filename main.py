@@ -754,15 +754,17 @@ def echo_all(message):
         conn = sqlite3.connect('bot_data.db')
         cursor = conn.cursor()
         cursor.execute('SELECT last_activity FROM user_data WHERE chat_id = ? AND user_id = ? LIMIT 1',
-                       (chat_id, user_id))
+                    (chat_id, user_id))
         result = cursor.fetchone()
         last_active_time = format_time_ago(result[0]) if result and result[0] else "Нет данных"
         conn.close()
         owner_text = "\n🌟 Владелец бота" if int(user_id) == owner_id else ""
         beta_text = "\n💠 Бета-тестер бота" if int(user_id) in beta_testers else ""
+        # Добавляем статус "Просто пользователь", если пользователь не владелец и не бета-тестер
+        status_text = "\n👤 Просто пользователь" if not owner_text and not beta_text else ""
         description_text = f"\n📝 {get_description(user_id)}" if get_description(user_id) else ""
         reply_text = (
-            f"Ты <b>{username}</b>{owner_text}{beta_text}{description_text}\n\n"
+            f"Ты <b>{username}</b>{owner_text}{beta_text}{status_text}{description_text}\n\n"
             f"Последний твой актив:\n{last_active_time}\n"
             f"Краткая стата (д|н|м|вся):\n{daily_count}|{weekly_count}|{monthly_count}|{all_time_count}"
         )
@@ -821,15 +823,17 @@ def echo_all(message):
                 conn = sqlite3.connect('bot_data.db')
                 cursor = conn.cursor()
                 cursor.execute('SELECT last_activity FROM user_data WHERE chat_id = ? AND user_id = ? LIMIT 1',
-                               (chat_id, target_user_id))
+                            (chat_id, target_user_id))
                 result = cursor.fetchone()
                 last_active_time = format_time_ago(result[0]) if result and result[0] else "Нет данных"
                 conn.close()
                 owner_text = "\n🌟 Владелец бота" if int(target_user_id) == owner_id else ""
                 beta_text = "\n💠 Бета-тестер бота" if int(target_user_id) in beta_testers else ""
+                # Добавляем статус "Просто пользователь", если пользователь не владелец и не бета-тестер
+                status_text = "\n👤 Просто пользователь" if not owner_text and not beta_text else ""
                 description_text = f"\n📝 {get_description(target_user_id)}" if get_description(target_user_id) else ""
                 reply_text = (
-                    f"Это <b>{target_user_name}</b>{owner_text}{beta_text}{description_text}\n\n"
+                    f"Это <b>{target_user_name}</b>{owner_text}{beta_text}{status_text}{description_text}\n\n"
                     f"Последний актив:\n{last_active_time}\n"
                     f"Краткая стата (д|н|м|вся):\n{daily_count}|{weekly_count}|{monthly_count}|{all_time_count}"
                 )
