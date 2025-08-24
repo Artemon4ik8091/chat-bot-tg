@@ -5,12 +5,15 @@ import os
 import json
 import random
 import sqlite3
+import uuid 
 
 from datetime import datetime, timedelta
 from telebot import types, util
 import logging
 import traceback
 import asyncio
+from telebot.types import InlineQueryResultArticle, InputTextMessageContent
+from telebot.types import InlineQueryResultArticle, InputTextMessageContent, InlineKeyboardMarkup, InlineKeyboardButton
 
 ####### CREATE DB IF NOT EXIST ##########
 
@@ -77,6 +80,25 @@ def init_sqlite_db():
             description TEXT
         )
     ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS rp_requests (
+            request_id TEXT PRIMARY KEY,
+            chat_id TEXT,
+            sender_id INTEGER,
+            target_id INTEGER,
+            command TEXT,
+            phrase TEXT,
+            created_at TEXT
+        )
+    ''')
+
+    # Проверяем, существует ли столбец last_mentioned_target в user_data
+    cursor.execute("PRAGMA table_info(user_data)")
+    columns = [info[1] for info in cursor.fetchall()]
+    if 'last_mentioned_target' not in columns:
+        cursor.execute('ALTER TABLE user_data ADD COLUMN last_mentioned_target TEXT')
+        print('DEBUG: Added last_mentioned_target column to user_data table.')
     
     conn.commit()
     conn.close()
@@ -135,6 +157,50 @@ def catch_error(message, e, err_type=None):
             log_stream.seek(0)
     elif err_type == 'no_user':
         bot.send_message(message.chat.id, 'Так.. а кому это адресованно то, глупый админ?')
+
+def save_last_target(chat_id, user_id, target_id):
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    # Проверяем, существует ли запись, если нет — создаём
+    cursor.execute('''
+        INSERT OR IGNORE INTO user_data (chat_id, user_id, date, message_count, last_activity, last_mentioned_target)
+        VALUES (?, ?, ?, 0, ?, ?)
+    ''', (str(chat_id), str(user_id), datetime.now().strftime('%Y-%m-%d'), None, None))
+    # Обновляем last_mentioned_target
+    cursor.execute('''
+        UPDATE user_data SET last_mentioned_target = ? 
+        WHERE chat_id = ? AND user_id = ? AND date = ?
+    ''', (str(target_id), str(chat_id), str(user_id), datetime.now().strftime('%Y-%m-%d')))
+    conn.commit()
+    conn.close()
+
+def get_last_target(chat_id, user_id):
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT last_mentioned_target FROM user_data 
+        WHERE chat_id = ? AND user_id = ? AND date = ? LIMIT 1
+    ''', (str(chat_id), str(user_id), datetime.now().strftime('%Y-%m-%d')))
+    result = cursor.fetchone()
+    conn.close()
+    return result[0] if result and result[0] else None
+
+def save_rp_request(request_id, chat_id, sender_id, target_id, command, phrase):
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    cursor.execute('INSERT INTO rp_requests (request_id, chat_id, sender_id, target_id, command, phrase, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                   (request_id, str(chat_id), sender_id, target_id, command, phrase, created_at))
+    conn.commit()
+    conn.close()
+
+def get_rp_request(request_id):
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT chat_id, sender_id, target_id, command, phrase FROM rp_requests WHERE request_id = ?', (request_id,))
+    result = cursor.fetchone()
+    conn.close()
+    return result if result else None
 
 def read_users():
     conn = sqlite3.connect('bot_data.db')
@@ -2452,5 +2518,459 @@ def echo_all(message):
                 bot.reply_to(message, response_text, parse_mode='HTML')
             except Exception as e:
                 catch_error(message, e)
+
+
+##############       RP INLINE COMMANDS        #################
+
+@bot.inline_handler(lambda query: True)
+def handle_inline_query(query):
+    try:
+        text = query.query.strip().lower()
+        if not text:
+            return
+
+        # Разделяем запрос на слова и обрабатываем команды с пробелами
+        words = text.split()
+        command = words[0]
+        user_phrase = ' '.join(words[1:]).strip() if len(words) > 1 else ''
+
+        # Поддержка многословных команд
+        if command == 'записать' and len(words) > 1 and words[1] == 'на':
+            command = 'записать на ноготочки'
+            user_phrase = ' '.join(words[3:]).strip() if len(words) > 3 else ''
+        elif command == 'делать' and len(words) > 1 and words[1] == 'секс':
+            command = 'делать секс'
+            user_phrase = ' '.join(words[2:]).strip() if len(words) > 2 else ''
+        elif command == 'подстричь' and len(words) > 1 and words[1] == 'налысо':
+            command = 'подстричь налысо'
+            user_phrase = ' '.join(words[2:]).strip() if len(words) > 2 else ''
+        elif command == 'выебать' and len(words) > 1 and words[1] == 'мозги':
+            command = 'выебать мозги'
+            user_phrase = ' '.join(words[2:]).strip() if len(words) > 2 else ''
+        elif command == 'разорвать' and len(words) > 1 and words[1] == 'очко':
+            command = 'разорвать очко'
+            user_phrase = ' '.join(words[2:]).strip() if len(words) > 2 else ''
+        elif command == 'довести' and len(words) > 1 and words[1] == 'до':
+            command = 'довести до сквирта'
+            user_phrase = ' '.join(words[3:]).strip() if len(words) > 3 else ''
+        elif command == 'отправить' and len(words) > 1 and words[1] == 'в':
+            command = 'отправить в дурку'
+            user_phrase = ' '.join(words[3:]).strip() if len(words) > 3 else ''
+        elif command == 'оторвать' and len(words) > 1 and words[1] == 'член':
+            command = 'оторвать член'
+            user_phrase = ' '.join(words[2:]).strip() if len(words) > 2 else ''
+
+        sender_id = query.from_user.id
+        sender_nickname = get_nickname(sender_id) or query.from_user.first_name
+        sender_display = sender_nickname.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+        # Формируем текст без указания цели
+        request_text = ""
+        if command == 'поцеловать':
+            request_text = f"{sender_display} хочет поцеловать"
+        elif command == 'обнять':
+            request_text = f"{sender_display} хочет обнять"
+        elif command == 'уебать':
+            request_text = f"{sender_display} хочет уебать"
+        elif command == 'отсосать':
+            request_text = f"{sender_display} хочет отсосать"
+        elif command == 'трахнуть':
+            request_text = f"{sender_display} хочет трахнуть"
+        elif command == 'ущипнуть':
+            request_text = f"{sender_display} хочет ущипнуть"
+        elif command == 'помериться':
+            request_text = f"{sender_display} хочет помериться"
+        elif command == 'обкончать':
+            request_text = f"{sender_display} хочет обкончать"
+        elif command == 'записать на ноготочки':
+            request_text = f"{sender_display} хочет записать на ноготочки"
+        elif command == 'делать секс':
+            request_text = f"{sender_display} хочет делать секс"
+        elif command == 'связать':
+            request_text = f"{sender_display} хочет связать"
+        elif command == 'заставить':
+            request_text = f"{sender_display} хочет заставить"
+        elif command == 'повесить':
+            request_text = f"{sender_display} хочет повесить"
+        elif command == 'уничтожить':
+            request_text = f"{sender_display} хочет уничтожить"
+        elif command == 'продать':
+            request_text = f"{sender_display} хочет продать"
+        elif command == 'щекотать':
+            request_text = f"{sender_display} хочет щекотать"
+        elif command == 'взорвать':
+            request_text = f"{sender_display} хочет взорвать"
+        elif command == 'шмальнуть':
+            request_text = f"{sender_display} хочет шмальнуть"
+        elif command == 'засосать':
+            request_text = f"{sender_display} хочет засосать"
+        elif command == 'лечь':
+            request_text = f"{sender_display} хочет лечь"
+        elif command == 'унизить':
+            request_text = f"{sender_display} хочет унизить"
+        elif command == 'арестовать':
+            request_text = f"{sender_display} хочет арестовать"
+        elif command == 'наорать':
+            request_text = f"{sender_display} хочет наорать"
+        elif command == 'рассмешить':
+            request_text = f"{sender_display} хочет рассмешить"
+        elif command == 'ушатать':
+            request_text = f"{sender_display} хочет ушатать"
+        elif command == 'порвать':
+            request_text = f"{sender_display} хочет порвать"
+        elif command == 'выкопать':
+            request_text = f"{sender_display} хочет выкопать"
+        elif command == 'сожрать':
+            request_text = f"{sender_display} хочет сожрать"
+        elif command == 'подстричь налысо':
+            request_text = f"{sender_display} хочет подстричь налысо"
+        elif command == 'выебать мозги':
+            request_text = f"{sender_display} хочет выебать мозги"
+        elif command == 'переехать':
+            request_text = f"{sender_display} хочет переехать"
+        elif command == 'выпороть':
+            request_text = f"{sender_display} хочет выпороть"
+        elif command == 'закопать':
+            request_text = f"{sender_display} хочет закопать"
+        elif command == 'пощупать':
+            request_text = f"{sender_display} хочет пощупать"
+        elif command == 'подрочить':
+            request_text = f"{sender_display} хочет подрочить"
+        elif command == 'потисать':
+            request_text = f"{sender_display} хочет потискать"
+        elif command == 'подарить':
+            request_text = f"{sender_display} хочет подарить"
+        elif command == 'выпить':
+            request_text = f"{sender_display} хочет выпить"
+        elif command == 'наказать':
+            request_text = f"{sender_display} хочет наказать"
+        elif command == 'разорвать очко':
+            request_text = f"{sender_display} хочет разорвать очко"
+        elif command == 'довести до сквирта':
+            request_text = f"{sender_display} хочет довести до сквирта"
+        elif command == 'напоить':
+            request_text = f"{sender_display} хочет напоить"
+        elif command == 'отправить в дурку':
+            request_text = f"{sender_display} хочет отправить в дурку"
+        elif command == 'оторвать член':
+            request_text = f"{sender_display} хочет оторвать член"
+        elif command == 'цыц' or command == 'цыц!':
+            request_text = f"{sender_display} хочет заткнуть ({command})"
+
+        if not request_text:
+            return
+
+        if user_phrase:
+            request_text += f'\nФраза: {user_phrase}'
+
+        request_id = str(uuid.uuid4())
+        save_rp_request(request_id, 0, sender_id, 0, command, user_phrase)
+
+        markup = InlineKeyboardMarkup()
+        markup.add(
+            InlineKeyboardButton("Принять", callback_data=f"rp_accept_{request_id}"),
+            InlineKeyboardButton("Отклонить", callback_data=f"rp_reject_{request_id}")
+        )
+
+        results = [
+            InlineQueryResultArticle(
+                id=request_id,
+                title=f"{command.capitalize()}",
+                input_message_content=InputTextMessageContent(
+                    request_text,
+                    parse_mode='HTML',
+                    disable_web_page_preview=True
+                ),
+                description=user_phrase[:50] if user_phrase else f"RP: {command}",
+                reply_markup=markup
+            )
+        ]
+        bot.answer_inline_query(query.id, results, cache_time=1)
+    except Exception as e:
+        print(f"Inline error: {e}")
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('rp_'))
+def handle_callback_query(call):
+    try:
+        action, request_id = call.data.split('_', 2)[1:]
+        logging.debug(f'Callback received: action={action}, request_id={request_id}, has_message={call.message is not None}, inline_message_id={call.inline_message_id}')
+        
+        request_data = get_rp_request(request_id)
+        if not request_data:
+            logging.warning(f'Request not found: request_id={request_id}')
+            bot.answer_callback_query(call.id, "Запрос устарел или не найден.")
+            return
+
+        chat_id, sender_id, _, command, phrase = request_data
+        sender_nickname = get_nickname(sender_id) or call.from_user.first_name
+        sender_display = sender_nickname.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+        # Цель определяется на основе того, кто нажал кнопку
+        clicker_id = call.from_user.id
+        clicker_nickname = get_nickname(clicker_id) or call.from_user.first_name
+        clicker_display = clicker_nickname.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        target_id = clicker_id
+        target_username = call.from_user.username or clicker_nickname
+        target_display = clicker_display
+        target_link = f'<a href="https://t.me/{target_username}">{target_display}</a>' if target_username else target_display
+        logging.debug(f'Sender: {sender_display} ({sender_id}), Target: {target_display} ({target_id}), Command: {command}')
+
+        # Формируем текст ответа без второй строки
+        response_text = ""
+        if action == 'accept':
+            if command == 'поцеловать':
+                response_text = f"{sender_display} нежно поцеловал {target_link}"
+            elif command == 'обнять':
+                response_text = f"{sender_display} крепко обнял {target_link}"
+            elif command == 'уебать':
+                rand = random.randint(1, 5)
+                parts = ["в глаз", "по щеке", "в челюсть", "в живот", "по виску"]
+                work = parts[rand - 1]
+                response_text = f"{sender_display} уебал со всей дури {target_link} и попал {work}"
+            elif command == 'отсосать':
+                response_text = f"{sender_display} глубоко отсосал у {target_link}"
+            elif command == 'трахнуть':
+                response_text = f"{sender_display} в ускоренном ритме побывал в {target_link}"
+            elif command == 'ущипнуть':
+                response_text = f"{sender_display} неожиданно ущипнул {target_link}"
+            elif command == 'помериться':
+                response_text = f"{sender_display} померился хозяйством с {target_link}"
+            elif command == 'обкончать':
+                rand = random.randint(1, 7)
+                parts = ["в глаз", "в рот", "внутрь", "на лицо", "на грудь", "на попку", "на животик"]
+                work = parts[rand - 1]
+                response_text = f"{sender_display} смачно накончал {work} {target_link}"
+            elif command == 'записать на ноготочки':
+                response_text = f"{sender_display} записал на маник {target_link}"
+            elif command == 'делать секс':
+                response_text = f"{sender_display} уединился с {target_link}"
+            elif command == 'связать':
+                response_text = f"{sender_display} крепко связал {target_link}"
+            elif command == 'заставить':
+                response_text = f"{sender_display} принудительно заставил {target_link}"
+            elif command == 'повесить':
+                response_text = f"{sender_display} превратил в черешенку {target_link}"
+            elif command == 'уничтожить':
+                response_text = f"{sender_display} низвёл до атомов.. ну или аннигилировал {target_link}"
+            elif command == 'продать':
+                response_text = f"{sender_display} продал за дёшево {target_link}"
+            elif command == 'щекотать':
+                response_text = f"{sender_display} щекотками довёл до истирического смеха {target_link}"
+            elif command == 'взорвать':
+                response_text = f"{sender_display} заминировал и подорвал {target_link}"
+            elif command == 'шмальнуть':
+                response_text = f"{sender_display} шмальнул {target_link} и тот улетел ну ооооооочень далеко"
+            elif command == 'засосать':
+                response_text = f"{sender_display} оставил отметку в виде засоса у {target_link}"
+            elif command == 'лечь':
+                response_text = f"{sender_display} прилёг рядом с {target_link}"
+            elif command == 'унизить':
+                response_text = f"{sender_display} унизил ниже плинтуса {target_link}"
+            elif command == 'арестовать':
+                response_text = f"Походу кто то мусорнулся и {sender_display} арестовал {target_link}"
+            elif command == 'наорать':
+                response_text = f"{sender_display} очень громко наорал на {target_link}"
+            elif command == 'рассмешить':
+                response_text = f"Юморист {sender_display} чуть ли не до смерти рассмешил {target_link}"
+            elif command == 'ушатать':
+                response_text = f"{sender_display} к хренам ушатал {target_link}"
+            elif command == 'порвать':
+                response_text = f"{sender_display} порвал {target_link} как Тузик грелку"
+            elif command == 'выкопать':
+                response_text = f"{sender_display} нашёл археологическую ценность в виде {target_link}"
+            elif command == 'сожрать':
+                response_text = f"{sender_display} кусьн.. СОЖРАЛ НАХРЕН {target_link}"
+            elif command == 'подстричь налысо':
+                response_text = f"Недо-меллстрой под ником {sender_display} подстриг налысо {target_link} за НИ-ЧЕ-ГО"
+            elif command == 'выебать мозги':
+                response_text = f"{sender_display} конкретно так заебал {target_link} и, заодно, трахнул мозги"
+            elif command == 'переехать':
+                response_text = f"{sender_display} пару раз переехал {target_link}"
+            elif command == 'выпороть':
+                response_text = f"{sender_display} выпорол до красна {target_link}"
+            elif command == 'закопать':
+                response_text = f"{sender_display} похоронил заживо {target_link}"
+            elif command == 'пощупать':
+                response_text = f"{sender_display} тщательно пощупал всего {target_link}"
+            elif command == 'подрочить':
+                response_text = f"{sender_display} передёрнул {target_link}"
+            elif command == 'потисать':
+                response_text = f"{sender_display} потискал {target_link} за его мягкие щёчки. Милотаа.."
+            elif command == 'подарить':
+                response_text = f"{sender_display} подарил от всего сердца подарочек {target_link}"
+            elif command == 'выпить':
+                response_text = f"{sender_display} разделил пару бокалов с {target_link}"
+            elif command == 'наказать':
+                response_text = f"Суровый {sender_display} наказал проказника {target_link}"
+            elif command == 'разорвать очко':
+                response_text = f"{sender_display} порвал напрочь задний проход {target_link}"
+            elif command == 'довести до сквирта':
+                response_text = f"{sender_display} довёл до мощного и струйного фонтана {target_link}"
+            elif command == 'напоить':
+                response_text = f"{sender_display} споил в стельку {target_link}"
+            elif command == 'отправить в дурку':
+                response_text = f"{sender_display} отправил прямиком в диспансер {target_link}. Шизоид, быстро в палату!"
+            elif command == 'оторвать член':
+                response_text = f"АЙ..\n\n<tg-spoiler>{sender_display} оторвал к херам наследство у {target_link}.</tg-spoiler>"
+            elif command == 'цыц':
+                response_text = f"{sender_display} заткнул {target_link} используя кляп и кинул в подвал. А нехер выделываться было."
+            elif command == 'цыц!':
+                response_text = f"Уууу.. {sender_display} закрыл ротик {target_link} и привязал к кроватке. Знаешь.. я не думаю что тебе что то хорошее светит.. а хотя может.. хз крч."
+        elif action == 'reject':
+            if command == 'поцеловать':
+                response_text = f"{target_link} увернулся от поцелуя {sender_display}"
+            elif command == 'обнять':
+                response_text = f"{target_link} вырвался из объятий {sender_display}"
+            elif command == 'уебать':
+                response_text = f"{target_link} ловко уклонился от удара {sender_display}"
+            elif command == 'отсосать':
+                response_text = f"{target_link} отказался от предложения {sender_display}"
+            elif command == 'трахнуть':
+                response_text = f"{target_link} отбился от настойчивых попыток {sender_display}"
+            elif command == 'ущипнуть':
+                response_text = f"{target_link} отскочил от щипка {sender_display}"
+            elif command == 'помериться':
+                response_text = f"{target_link} отказался меряться с {sender_display}"
+            elif command == 'обкончать':
+                response_text = f"{target_link} увернулся от потока {sender_display}"
+            elif command == 'записать на ноготочки':
+                response_text = f"{target_link} отказался от записи на маникюр от {sender_display}"
+            elif command == 'делать секс':
+                response_text = f"{target_link} не захотел уединяться с {sender_display}"
+            elif command == 'связать':
+                response_text = f"{target_link} вырвался из верёвок {sender_display}"
+            elif command == 'заставить':
+                response_text = f"{target_link} сопротивлялся принуждению {sender_display}"
+            elif command == 'повесить':
+                response_text = f"{target_link} сорвался с петли {sender_display}"
+            elif command == 'уничтожить':
+                response_text = f"{target_link} выжил после попытки уничтожения {sender_display}"
+            elif command == 'продать':
+                response_text = f"{target_link} сбежал с аукциона {sender_display}"
+            elif command == 'щекотать':
+                response_text = f"{target_link} не поддался щекотке {sender_display}"
+            elif command == 'взорвать':
+                response_text = f"{target_link} обезвредил бомбу {sender_display}"
+            elif command == 'шмальнуть':
+                response_text = f"{target_link} увернулся от выстрела {sender_display}"
+            elif command == 'засосать':
+                response_text = f"{target_link} оттолкнул {sender_display} от засоса"
+            elif command == 'лечь':
+                response_text = f"{target_link} не лёг рядом с {sender_display}"
+            elif command == 'унизить':
+                response_text = f"{target_link} не поддался унижению от {sender_display}"
+            elif command == 'арестовать':
+                response_text = f"{target_link} скрылся от ареста {sender_display}"
+            elif command == 'наорать':
+                response_text = f"{target_link} заткнул уши от крика {sender_display}"
+            elif command == 'рассмешить':
+                response_text = f"{target_link} остался серьёзным несмотря на шутки {sender_display}"
+            elif command == 'ушатать':
+                response_text = f"{target_link} устоял после ушатывания {sender_display}"
+            elif command == 'порвать':
+                response_text = f"{target_link} не дал себя порвать {sender_display}"
+            elif command == 'выкопать':
+                response_text = f"{target_link} зарылся глубже от {sender_display}"
+            elif command == 'сожрать':
+                response_text = f"{target_link} вырвался из пасти {sender_display}"
+            elif command == 'подстричь налысо':
+                response_text = f"{target_link} уклонился от ножниц {sender_display}"
+            elif command == 'выебать мозги':
+                response_text = f"{target_link} игнорировал вынос мозга {sender_display}"
+            elif command == 'переехать':
+                response_text = f"{target_link} перепрыгнул через машину {sender_display}"
+            elif command == 'выпороть':
+                response_text = f"{target_link} увернулся от порки {sender_display}"
+            elif command == 'закопать':
+                response_text = f"{target_link} выбрался из ямы {sender_display}"
+            elif command == 'пощупать':
+                response_text = f"{target_link} отошёл от {sender_display}"
+            elif command == 'подрочить':
+                response_text = f"{target_link} прервал процесс {sender_display}"
+            elif command == 'потисать':
+                response_text = f"{target_link} не дал себя потискать {sender_display}"
+            elif command == 'подарить':
+                response_text = f"{target_link} вернул подарок {sender_display}"
+            elif command == 'выпить':
+                response_text = f"{target_link} отказался пить с {sender_display}"
+            elif command == 'наказать':
+                response_text = f"{target_link} избежал наказания от {sender_display}"
+            elif command == 'разорвать очко':
+                response_text = f"{target_link} защитил задний проход от {sender_display}"
+            elif command == 'довести до сквирта':
+                response_text = f"{target_link} не поддался доведению {sender_display}"
+            elif command == 'напоить':
+                response_text = f"{target_link} протрезвел от попыток {sender_display}"
+            elif command == 'отправить в дурку':
+                response_text = f"{target_link} доказал свою нормальность {sender_display}"
+            elif command == 'оторвать член':
+                response_text = f"{target_link} сохранил своё наследство от {sender_display}"
+            elif command == 'цыц':
+                response_text = f"{target_link} продолжил говорить несмотря на {sender_display}"
+            elif command == 'цыц!':
+                response_text = f"{target_link} вырвался из кроватки {sender_display}"
+
+        if phrase:
+            response_text += f"\nСо словами: {phrase}"
+        logging.debug(f'Response text: {response_text}')
+
+        # Проверяем, можно ли отредактировать сообщение
+        if call.message:
+            try:
+                chat_id = str(call.message.chat.id)
+                message_id = call.message.message_id
+                logging.debug(f'Editing message in chat_id={chat_id}, message_id={message_id}')
+                bot.edit_message_text(
+                    text=response_text,
+                    chat_id=chat_id,
+                    message_id=message_id,
+                    parse_mode='HTML',
+                    disable_web_page_preview=True
+                )
+                # Обновляем chat_id и target_id в базе
+                conn = sqlite3.connect('bot_data.db')
+                cursor = conn.cursor()
+                cursor.execute('UPDATE rp_requests SET chat_id = ?, target_id = ? WHERE request_id = ?',
+                              (chat_id, target_id, request_id))
+                conn.commit()
+                conn.close()
+                # Сохраняем цель для sender_id
+                save_last_target(chat_id, sender_id, target_id)
+                bot.answer_callback_query(call.id, "Действие обработано!")
+                logging.debug(f'Message edited successfully in chat_id={chat_id}, message_id={message_id}')
+            except Exception as e:
+                logging.error(f'Edit message error: {e}')
+                bot.answer_callback_query(call.id, f"Ошибка: не удалось изменить сообщение. {str(e)}")
+        elif call.inline_message_id:
+            try:
+                logging.debug(f'Editing inline message with inline_message_id={call.inline_message_id}')
+                bot.edit_message_text(
+                    text=response_text,
+                    inline_message_id=call.inline_message_id,
+                    parse_mode='HTML',
+                    disable_web_page_preview=True
+                )
+                # Обновляем target_id в базе, chat_id оставляем 0
+                conn = sqlite3.connect('bot_data.db')
+                cursor = conn.cursor()
+                cursor.execute('UPDATE rp_requests SET target_id = ? WHERE request_id = ?',
+                              (target_id, request_id))
+                conn.commit()
+                conn.close()
+                # Сохраняем цель для sender_id (используем sender_id как chat_id в ЛС)
+                save_last_target(str(sender_id), sender_id, target_id)
+                bot.answer_callback_query(call.id, "Действие обработано!")
+                logging.debug(f'Inline message edited successfully: inline_message_id={call.inline_message_id}')
+            except Exception as e:
+                logging.error(f'Edit inline message error: {e}')
+                bot.answer_callback_query(call.id, f"Ошибка: не удалось изменить сообщение. {str(e)}")
+        else:
+            # В предпросмотре молча игнорируем callback
+            logging.debug(f'Ignoring callback in preview mode: request_id={request_id}')
+            bot.answer_callback_query(call.id)
+
+    except Exception as e:
+        logging.error(f'Callback error: {e}')
+        bot.answer_callback_query(call.id, f"Ошибка при обработке действия: {str(e)}")
 
 bot.polling(none_stop=True)
