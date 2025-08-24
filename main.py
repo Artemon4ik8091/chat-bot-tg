@@ -162,7 +162,10 @@ def get_nickname(user_id):
 def set_nickname(user_id, nickname):
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
-    cursor.execute('INSERT OR REPLACE INTO user_profiles (user_id, nickname) VALUES (?, ?)', (user_id, nickname))
+    # Создаём строку, если не существует (не трогаем существующие поля)
+    cursor.execute('INSERT OR IGNORE INTO user_profiles (user_id) VALUES (?)', (user_id,))
+    # Обновляем только ник
+    cursor.execute('UPDATE user_profiles SET nickname = ? WHERE user_id = ?', (nickname, user_id))
     conn.commit()
     conn.close()
 
@@ -184,7 +187,10 @@ def get_description(user_id):
 def set_description(user_id, description):
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
-    cursor.execute('INSERT OR REPLACE INTO user_profiles (user_id, description) VALUES (?, ?)', (user_id, description))
+    # Создаём строку, если не существует (не трогаем существующие поля)
+    cursor.execute('INSERT OR IGNORE INTO user_profiles (user_id) VALUES (?)', (user_id,))
+    # Обновляем только описание
+    cursor.execute('UPDATE user_profiles SET description = ? WHERE user_id = ?', (description, user_id))
     conn.commit()
     conn.close()
 
