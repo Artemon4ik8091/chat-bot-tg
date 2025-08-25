@@ -86,6 +86,7 @@ def init_sqlite_db():
             request_id TEXT PRIMARY KEY,
             chat_id TEXT,
             sender_id INTEGER,
+            sender_first_name TEXT,  -- Новое поле
             target_id INTEGER,
             command TEXT,
             phrase TEXT,
@@ -93,12 +94,12 @@ def init_sqlite_db():
         )
     ''')
 
-    # Проверяем, существует ли столбец last_mentioned_target в user_data
-    cursor.execute("PRAGMA table_info(user_data)")
+    # Проверяем, существует ли столбец sender_first_name
+    cursor.execute("PRAGMA table_info(rp_requests)")
     columns = [info[1] for info in cursor.fetchall()]
-    if 'last_mentioned_target' not in columns:
-        cursor.execute('ALTER TABLE user_data ADD COLUMN last_mentioned_target TEXT')
-        print('DEBUG: Added last_mentioned_target column to user_data table.')
+    if 'sender_first_name' not in columns:
+        cursor.execute('ALTER TABLE rp_requests ADD COLUMN sender_first_name TEXT')
+        print('DEBUG: Added sender_first_name column to rp_requests table.')
     
     conn.commit()
     conn.close()
@@ -185,19 +186,19 @@ def get_last_target(chat_id, user_id):
     conn.close()
     return result[0] if result and result[0] else None
 
-def save_rp_request(request_id, chat_id, sender_id, target_id, command, phrase):
+def save_rp_request(request_id, chat_id, sender_id, target_id, command, phrase, sender_first_name):
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
     created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    cursor.execute('INSERT INTO rp_requests (request_id, chat_id, sender_id, target_id, command, phrase, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                   (request_id, str(chat_id), sender_id, target_id, command, phrase, created_at))
+    cursor.execute('INSERT INTO rp_requests (request_id, chat_id, sender_id, sender_first_name, target_id, command, phrase, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                   (request_id, str(chat_id), sender_id, sender_first_name, target_id, command, phrase, created_at))
     conn.commit()
     conn.close()
 
 def get_rp_request(request_id):
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
-    cursor.execute('SELECT chat_id, sender_id, target_id, command, phrase FROM rp_requests WHERE request_id = ?', (request_id,))
+    cursor.execute('SELECT chat_id, sender_id, sender_first_name, target_id, command, phrase FROM rp_requests WHERE request_id = ?', (request_id,))
     result = cursor.fetchone()
     conn.close()
     return result if result else None
@@ -2563,6 +2564,7 @@ def handle_inline_query(query):
         sender_id = query.from_user.id
         sender_nickname = get_nickname(sender_id) or query.from_user.first_name
         sender_display = sender_nickname.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        sender_first_name = query.from_user.first_name
 
         # Формируем текст без указания цели
         request_text = ""
@@ -2664,7 +2666,7 @@ def handle_inline_query(query):
             request_text += f'\nФраза: {user_phrase}'
 
         request_id = str(uuid.uuid4())
-        save_rp_request(request_id, 0, sender_id, 0, command, user_phrase)
+        save_rp_request(request_id, 0, sender_id, 0, command, user_phrase, sender_first_name)
 
         markup = InlineKeyboardMarkup()
         markup.add(
@@ -2701,21 +2703,37 @@ def handle_callback_query(call):
             bot.answer_callback_query(call.id, "Запрос устарел или не найден.")
             return
 
-        chat_id, sender_id, _, command, phrase = request_data
-        sender_nickname = get_nickname(sender_id) or call.from_user.first_name
-        sender_display = sender_nickname.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-
-        # Цель определяется на основе того, кто нажал кнопку
+        chat_id, sender_id, sender_first_name, target_id, command, phrase = request_data
         clicker_id = call.from_user.id
-        clicker_nickname = get_nickname(clicker_id) or call.from_user.first_name
-        clicker_display = clicker_nickname.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
         target_id = clicker_id
-        target_username = call.from_user.username or clicker_nickname
-        target_display = clicker_display
-        target_link = f'<a href="https://t.me/{target_username}">{target_display}</a>' if target_username else target_display
+
+        # Получаем display names
+        sender_display = (get_nickname(sender_id) or sender_first_name or "Пользователь").replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        target_display = "Неизвестный"
+        target_username = None
+        target_link = target_display
+
+        if call.message:
+            chat_id = str(call.message.chat.id)
+            try:
+                target_member = bot.get_chat_member(int(chat_id), target_id)
+                target_display = (get_nickname(target_id) or target_member.user.first_name).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                target_username = target_member.user.username.lstrip('@') if target_member.user.username else None
+                target_link = f'<a href="https://t.me/{target_username}">{target_display}</a>' if target_username else target_display
+            except Exception as e:
+                logging.error(f'Error getting target member: {e}')
+                target_display = (get_nickname(target_id) or call.from_user.first_name or "Пользователь").replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                target_username = call.from_user.username.lstrip('@') if call.from_user.username else None
+                target_link = f'<a href="https://t.me/{target_username}">{target_display}</a>' if target_username else target_display
+        else:
+            # Для inline в ЛС
+            target_display = (get_nickname(target_id) or call.from_user.first_name or "Пользователь").replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            target_username = call.from_user.username.lstrip('@') if call.from_user.username else None
+            target_link = f'<a href="https://t.me/{target_username}">{target_display}</a>' if target_username else target_display
+
         logging.debug(f'Sender: {sender_display} ({sender_id}), Target: {target_display} ({target_id}), Command: {command}')
 
-        # Формируем текст ответа без второй строки
+        # Формируем текст ответа
         response_text = ""
         if action == 'accept':
             if command == 'поцеловать':
@@ -2874,7 +2892,7 @@ def handle_callback_query(call):
             elif command == 'сожрать':
                 response_text = f"{target_link} вырвался из пасти {sender_display}"
             elif command == 'подстричь налысо':
-                response_text = f"{target_link} уклонился от ножниц {sender_display}"
+                response_text = f"{target_link} увернулся от ножниц {sender_display}"
             elif command == 'выебать мозги':
                 response_text = f"{target_link} игнорировал вынос мозга {sender_display}"
             elif command == 'переехать':
@@ -2884,7 +2902,7 @@ def handle_callback_query(call):
             elif command == 'закопать':
                 response_text = f"{target_link} выбрался из ямы {sender_display}"
             elif command == 'пощупать':
-                response_text = f"{target_link} отошёл от {sender_display}"
+                response_text = f"{target_link} не дал себя пощупать извращенцу {sender_display}"
             elif command == 'подрочить':
                 response_text = f"{target_link} прервал процесс {sender_display}"
             elif command == 'потисать':
@@ -2914,7 +2932,7 @@ def handle_callback_query(call):
             response_text += f"\nСо словами: {phrase}"
         logging.debug(f'Response text: {response_text}')
 
-        # Проверяем, можно ли отредактировать сообщение
+        # Редактирование сообщения
         if call.message:
             try:
                 chat_id = str(call.message.chat.id)
