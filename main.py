@@ -2740,6 +2740,8 @@ def handle_callback_query(call):
                 response_text = f"{sender_display} нежно поцеловал {target_link}"
             elif command == 'обнять':
                 response_text = f"{sender_display} крепко обнял {target_link}"
+            elif command == 'погладить':
+                response_text = f"{sender_display} нежненько погладил {target_link}"
             elif command == 'уебать':
                 rand = random.randint(1, 5)
                 parts = ["в глаз", "по щеке", "в челюсть", "в живот", "по виску"]
