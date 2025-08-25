@@ -268,6 +268,24 @@ def remove_description(user_id):
     conn.commit()
     conn.close()
 
+def get_uptime():
+    try:
+        # Запускаем команду 'uptime'
+        # 'capture_output=True' сохраняет stdout и stderr
+        # 'text=True' декодирует вывод в строку (UTF-8 по умолчанию)
+        result = subprocess.run(['uptime'], capture_output=True, text=True, check=True)
+                
+        # Возвращаем стандартный вывод команды
+        return result.stdout.strip()
+    except subprocess.CalledProcessError as e:
+        # Обработка ошибок, если команда завершилась с ненулевым кодом
+        print(f"Ошибка выполнения команды: {e}")
+        return ""
+    except FileNotFoundError:
+        # Обработка ошибки, если команда 'uptime' не найдена
+        print("Команда 'uptime' не найдена.")
+        return ""
+
 def read_la():
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
@@ -1229,6 +1247,7 @@ def echo_all(message):
 Изнасиловать
 Отдаться
 Отравить
+Потрогать
 Ударить
 Убить
 Понюхать
@@ -1367,7 +1386,7 @@ def echo_all(message):
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{display_name} погладил {get_name(message)}'
+            response_text = f'{display_name} нежненько погладил {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1383,7 +1402,7 @@ def echo_all(message):
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{display_name} покормил {get_name(message)}'
+            response_text = f'{display_name} вкусно накормил {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1399,7 +1418,7 @@ def echo_all(message):
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{display_name} дал пять {get_name(message)}'
+            response_text = f'{display_name} круто дал пять {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1415,7 +1434,7 @@ def echo_all(message):
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{display_name} поздравил {get_name(message)}'
+            response_text = f'{display_name} феерично поздравил {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1431,7 +1450,7 @@ def echo_all(message):
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{display_name} прижал {get_name(message)}'
+            response_text = f'{display_name} прижал к стеночке~~ {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1447,7 +1466,7 @@ def echo_all(message):
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{display_name} пнул {get_name(message)}'
+            response_text = f'{display_name} пнул под зад {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1463,7 +1482,7 @@ def echo_all(message):
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{display_name} расстрелял {get_name(message)}'
+            response_text = f'{display_name} расстрелял со всего что было {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1479,7 +1498,7 @@ def echo_all(message):
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{display_name} испугал {get_name(message)}'
+            response_text = f'{display_name} напугал до мурашек {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1495,7 +1514,7 @@ def echo_all(message):
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{display_name} изнасиловал {get_name(message)}'
+            response_text = f'{display_name} внезапно и принудительно изнасиловал {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1511,7 +1530,7 @@ def echo_all(message):
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{display_name} отдался {get_name(message)}'
+            response_text = f'{display_name} добровольно и полностью отдался {get_name(message)}. Хорошего вечера вам)'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1527,7 +1546,7 @@ def echo_all(message):
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{display_name} отравил {get_name(message)}'
+            response_text = f'{display_name} безжалостно отравил чем то {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1559,7 +1578,7 @@ def echo_all(message):
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{display_name} убил {get_name(message)}'
+            response_text = f'{display_name} жестоко убил {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1575,7 +1594,7 @@ def echo_all(message):
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{display_name} понюхал {get_name(message)}'
+            response_text = f'{display_name} аккуратненько понюхал {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1591,7 +1610,7 @@ def echo_all(message):
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{display_name} кастрировал {get_name(message)}'
+            response_text = f'{display_name} лишил яек (и наследства) {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1832,7 +1851,7 @@ def echo_all(message):
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{display_name} неожиданно ущипнул {get_name(message)}'
+            response_text = f'{display_name} неожиданно неожиданно ущипнул {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1879,7 +1898,7 @@ def echo_all(message):
             # Извлекаем фразу, которая теперь будет в оригинальном регистре
             user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Формируем ответ
-            response_text = f'{display_name} померился хозяйством с {get_name(message)}'
+            response_text = f'{display_name} померился хозяйством с хозяйством с {get_name(message)}'
             if user_phrase: # Добавляем фразу, только если она есть
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -2403,6 +2422,22 @@ def echo_all(message):
                 catch_error(message, e)
 
     if message.text: # Убедимся, что сообщение не пустое
+        match = re.match(r'\bПОТРОГАТЬ\b\s*(.*)', message.text, re.IGNORECASE)
+        if match:
+            display_name = get_nickname(message.from_user.id) or message.from_user.first_name
+            display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            # Извлекаем фразу, которая теперь будет в оригинальном регистре
+            user_phrase = match.group(1).strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            # Формируем ответ
+            response_text = f'{display_name} аккуратненько потрогал {get_name(message)}'
+            if user_phrase: # Добавляем фразу, только если она есть
+                response_text += f'\nСо словами: {user_phrase}'
+            try:
+                bot.reply_to(message, response_text, parse_mode='HTML')
+            except Exception as e:
+                catch_error(message, e)
+
+    if message.text: # Убедимся, что сообщение не пустое
         match = re.match(r'\bНАКАЗАТЬ\b\s*(.*)', message.text, re.IGNORECASE)
         if match:
             display_name = get_nickname(message.from_user.id) or message.from_user.first_name
@@ -2572,6 +2607,58 @@ def handle_inline_query(query):
             request_text = f"{sender_display} хочет поцеловать"
         elif command == 'обнять':
             request_text = f"{sender_display} хочет обнять"
+        elif command == 'покормить':
+            request_text = f"{sender_display} хочет покормить"
+        elif command == 'дать пять':
+            request_text = f"{sender_display} хочет дать пять"
+        elif command == 'забрать в рабство':
+            request_text = f"{sender_display} хочет забрать в рабство"
+        elif command == 'пригласить на чай':
+            request_text = f"{sender_display} хочет пригласить на чай"
+        elif command == 'кусь':
+            request_text = f"{sender_display} хочет кусьнуть"
+        elif command == 'поздравить':
+            request_text = f"{sender_display} хочет поздравить"
+        elif command == 'прижать':
+            request_text = f"{sender_display} хочет прижать"
+        elif command == 'потрогать':
+            request_text = f"{sender_display} хочет потрогать"
+        elif command == 'пнуть':
+            request_text = f"{sender_display} хочет пнуть"
+        elif command == 'расстрелять':
+            request_text = f"{sender_display} хочет расстрелять"
+        elif command == 'испугать':
+            request_text = f"{sender_display} хочет испугать"
+        elif command == 'изнасиловать':
+            request_text = f"{sender_display} хочет изнасиловать"
+        elif command == 'отдаться':
+            request_text = f"{sender_display} хочет отдаться"
+        elif command == 'отравить':
+            request_text = f"{sender_display} хочет отравить"
+        elif command == 'ударить':
+            request_text = f"{sender_display} хочет ударить"
+        elif command == 'убить':
+            request_text = f"{sender_display} хочет убить"
+        elif command == 'понюхать':
+            request_text = f"{sender_display} хочет понюхать"
+        elif command == 'кастрировать':
+            request_text = f"{sender_display} хочет кастрировать"
+        elif command == 'пожать руку':
+            request_text = f"{sender_display} хочет пожать руку"
+        elif command == 'выебать':
+            request_text = f"{sender_display} хочет выебать"
+        elif command == 'извиниться':
+            request_text = f"{sender_display} хочет извиниться"
+        elif command == 'лизнуть':
+            request_text = f"{sender_display} хочет лизнуть"
+        elif command == 'шлёпнуть':
+            request_text = f"{sender_display} хочет шлёпнуть"
+        elif command == 'послать нахуй':
+            request_text = f"{sender_display} хочет послать нахуй"
+        elif command == 'похвалить':
+            request_text = f"{sender_display} хочет похвалить"
+        elif command == 'сжечь':
+            request_text = f"{sender_display} хочет сжечь"
         elif command == 'погладить':
             request_text = f"{sender_display} хочет погладить"
         elif command == 'уебать':
@@ -2640,7 +2727,7 @@ def handle_inline_query(query):
             request_text = f"{sender_display} хочет пощупать"
         elif command == 'подрочить':
             request_text = f"{sender_display} хочет подрочить"
-        elif command == 'потисать':
+        elif command == 'потискать':
             request_text = f"{sender_display} хочет потискать"
         elif command == 'подарить':
             request_text = f"{sender_display} хочет подарить"
@@ -2742,8 +2829,63 @@ def handle_callback_query(call):
                 response_text = f"{sender_display} нежно поцеловал {target_link}"
             elif command == 'обнять':
                 response_text = f"{sender_display} крепко обнял {target_link}"
+            elif command == 'кусь':
+                response_text = f"{sender_display} кусьнул {target_link}"
+            elif command == 'поздравить':
+                response_text = f"{sender_display} феерично поздравил {target_link}"
+            elif command == 'прижать':
+                response_text = f"{sender_display} прижал к стеночке~~ {target_link}"
+            elif command == 'потрогать':
+                response_text = f"{sender_display} аккуратненько потрогал {target_link}"
+            elif command == 'пнуть':
+                response_text = f"{sender_display} пнул под зад {target_link}"
+            elif command == 'расстрелять':
+                response_text = f"{sender_display} расстрелял со всего что было {target_link}"
+            elif command == 'испугать':
+                response_text = f"{sender_display} напугал до мурашек {target_link}"
+            elif command == 'изнасиловать':
+                response_text = f"{sender_display} внезапно и принудительно изнасиловал {target_link}"
+            elif command == 'отдаться':
+                response_text = f"{sender_display} добровольно и полностью отдался {target_link}. Хорошего вечера вам)"
+            elif command == 'отравить':
+                response_text = f"{sender_display} безжалостно отравил чем то {target_link}"
+            elif command == 'ударить':
+                rand = random.randint(1, 5)
+                parts = ["в глаз", "по щеке", "в челюсть", "в живот", "по виску"]
+                work = parts[rand - 1]
+                response_text = f"{sender_display} сильно ударил {target_link} и попал {work}"
+            elif command == 'убить':
+                response_text = f"{sender_display} жестоко убил {target_link}"
+            elif command == 'понюхать':
+                response_text = f"{sender_display} аккуратненько понюхал {target_link}"
+            elif command == 'кастрировать':
+                response_text = f"{sender_display} лишил яек (и наследства) {target_link}"
+            elif command == 'пожать руку':
+                response_text = f"{sender_display} крепко и с уважением пожал руку {target_link}"
+            elif command == 'выебать':
+                response_text = f"{sender_display} аккуратненько так вошёл в {target_link}"
+            elif command == 'извиниться':
+                response_text = f"{sender_display} раскаялся перед {target_link}"
+            elif command == 'лизнуть':
+                response_text = f"{sender_display} облизнул {target_link}"
+            elif command == 'шлёпнуть':
+                response_text = f"{sender_display} шлёпнул {target_link}"
+            elif command == 'послать нахуй':
+                response_text = f"{sender_display} послал куда подальше {target_link}"
+            elif command == 'похвалить':
+                response_text = f"{sender_display} радостно похвалил {target_link}"
+            elif command == 'сжечь':
+                response_text = f"{sender_display} сжёг до тла {target_link}"
+            elif command == 'покормить':
+                response_text = f"{sender_display} вкусно накормил {target_link}"
+            elif command == 'дать пять':
+                response_text = f"{sender_display} круто дал пять {target_link}"
+            elif command == 'забрать в рабство':
+                response_text = f"{sender_display} забрал к себе в свои рабы {target_link}"
             elif command == 'погладить':
                 response_text = f"{sender_display} нежненько погладил {target_link}"
+            elif command == 'пригласить на чай':
+                response_text = f"{sender_display} пригласил к себе попить чаёчку {target_link}"
             elif command == 'уебать':
                 rand = random.randint(1, 5)
                 parts = ["в глаз", "по щеке", "в челюсть", "в живот", "по виску"]
@@ -2754,9 +2896,9 @@ def handle_callback_query(call):
             elif command == 'трахнуть':
                 response_text = f"{sender_display} в ускоренном ритме побывал в {target_link}"
             elif command == 'ущипнуть':
-                response_text = f"{sender_display} неожиданно ущипнул {target_link}"
+                response_text = f"{sender_display} неожиданно неожиданно ущипнул {target_link}"
             elif command == 'помериться':
-                response_text = f"{sender_display} померился хозяйством с {target_link}"
+                response_text = f"{sender_display} померился хозяйством с хозяйством с {target_link}"
             elif command == 'обкончать':
                 rand = random.randint(1, 7)
                 parts = ["в глаз", "в рот", "внутрь", "на лицо", "на грудь", "на попку", "на животик"]
@@ -2816,7 +2958,7 @@ def handle_callback_query(call):
                 response_text = f"{sender_display} тщательно пощупал всего {target_link}"
             elif command == 'подрочить':
                 response_text = f"{sender_display} передёрнул {target_link}"
-            elif command == 'потисать':
+            elif command == 'потискать':
                 response_text = f"{sender_display} потискал {target_link} за его мягкие щёчки. Милотаа.."
             elif command == 'подарить':
                 response_text = f"{sender_display} подарил от всего сердца подарочек {target_link}"
@@ -2843,8 +2985,44 @@ def handle_callback_query(call):
                 response_text = f"{target_link} увернулся от поцелуя {sender_display}"
             elif command == 'обнять':
                 response_text = f"{target_link} вырвался из объятий {sender_display}"
-            elif command == 'погладить':
-                response_text = f"{target_link} уклонился от глажки {sender_display}"
+            elif command == 'потрогать':
+                response_text = f"{target_link} отошёл и не дал себя потрогать {sender_display}"
+            elif command == 'пнуть':
+                response_text = f"{target_link} увернулся от пинка {sender_display}"
+            elif command == 'расстрелять':
+                response_text = f"{target_link} как в фильмах увернулся от всех пуль {sender_display}"
+            elif command == 'испугать':
+                response_text = f"{target_link} нисколько не испугался {sender_display}"
+            elif command == 'изнасиловать':
+                response_text = f"{target_link} не дал себя и свои места {sender_display} просто так легко"
+            elif command == 'отдаться':
+                response_text = f"{target_link} отшил {sender_display}"
+            elif command == 'отравить':
+                response_text = f"Иммунитет {target_link} выдержал яд {sender_display}"
+            elif command == 'ударить':
+                response_text = f"{target_link} ловко увернулся от удара {sender_display}"
+            elif command == 'убить':
+                response_text = f"{target_link} выжил после попыток убийства от {sender_display}"
+            elif command == 'понюхать':
+                response_text = f"{target_link} отскочил от {sender_display} и не дал себя понюхать"
+            elif command == 'кастрировать':
+                response_text = f"{target_link} защитил своё наследство от {sender_display}"
+            elif command == 'пожать руку':
+                response_text = f"{target_link} молча посмотрел на руку {sender_display} и сделал каменное лицо, давая знак, что не будет пожимать руку"
+            elif command == 'выебать':
+                response_text = f"{target_link} не дал {sender_display}"
+            elif command == 'извиниться':
+                response_text = f"{target_link} не принял извинения от {sender_display}"
+            elif command == 'лизнуть':
+                response_text = f"{target_link} отклонился от {sender_display}, не дав себя лизнуть"
+            elif command == 'шлёпнуть':
+                response_text = f"{target_link} тактично отразил шлепок {sender_display}"
+            elif command == 'послать нахуй':
+                response_text = f"{target_link} никуда не пошёл."
+            elif command == 'похвалить':
+                response_text = f"{target_link} пропустил мимо ушей слова {sender_display}"
+            elif command == 'сжечь':
+                response_text = f"{target_link} убежал от огня {sender_display}"
             elif command == 'уебать':
                 response_text = f"{target_link} ловко уклонился от удара {sender_display}"
             elif command == 'отсосать':
@@ -2911,7 +3089,7 @@ def handle_callback_query(call):
                 response_text = f"{target_link} не дал себя пощупать извращенцу {sender_display}"
             elif command == 'подрочить':
                 response_text = f"{target_link} прервал процесс {sender_display}"
-            elif command == 'потисать':
+            elif command == 'потискать':
                 response_text = f"{target_link} не дал себя потискать {sender_display}"
             elif command == 'подарить':
                 response_text = f"{target_link} вернул подарок {sender_display}"
