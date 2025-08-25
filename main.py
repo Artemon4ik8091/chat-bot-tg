@@ -2572,6 +2572,8 @@ def handle_inline_query(query):
             request_text = f"{sender_display} хочет поцеловать"
         elif command == 'обнять':
             request_text = f"{sender_display} хочет обнять"
+        elif command == 'погладить':
+            request_text = f"{sender_display} хочет погладить"
         elif command == 'уебать':
             request_text = f"{sender_display} хочет уебать"
         elif command == 'отсосать':
