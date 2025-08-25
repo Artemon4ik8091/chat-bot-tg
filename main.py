@@ -2841,6 +2841,8 @@ def handle_callback_query(call):
                 response_text = f"{target_link} увернулся от поцелуя {sender_display}"
             elif command == 'обнять':
                 response_text = f"{target_link} вырвался из объятий {sender_display}"
+            elif command == 'погладить':
+                response_text = f"{target_link} уклонился от глажки {sender_display}"
             elif command == 'уебать':
                 response_text = f"{target_link} ловко уклонился от удара {sender_display}"
             elif command == 'отсосать':
