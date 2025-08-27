@@ -1,4 +1,4 @@
-*.json
+db.json
 bot.py
 *.db
 .DS_Store

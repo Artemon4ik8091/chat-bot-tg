@@ -1,0 +1,381 @@
+{
+  "commands": {
+    "поцеловать": {
+      "request": "{sender} хочет поцеловать",
+      "accept": "{sender} нежно поцеловал {target}",
+      "reject": "{target} увернулся от поцелуя {sender}",
+      "description": "Нежно поцеловать друга"
+    },
+    "обнять": {
+      "request": "{sender} хочет обнять",
+      "accept": "{sender} крепко обнял {target}",
+      "reject": "{target} вырвался из объятий {sender}",
+      "description": "Крепко обнять кого-то"
+    },
+    "кусь": {
+      "request": "{sender} хочет кусьнуть",
+      "accept": "{sender} кусьнул {target}",
+      "reject": "{target} отклонился от {sender}, не дав себя кусьнуть"
+    },
+    "поздравить": {
+      "request": "{sender} хочет поздравить",
+      "accept": "{sender} феерично поздравил {target}",
+      "reject": "{target} пропустил мимо ушей поздравление {sender}",
+      "description": "Поздравить с размахом"
+    },
+    "прижать": {
+      "request": "{sender} хочет прижать",
+      "accept": "{sender} прижал к стеночке~~ {target}",
+      "reject": "{target} оттолкнул {sender}"
+    },
+    "потрогать": {
+      "request": "{sender} хочет потрогать",
+      "accept": "{sender} аккуратненько потрогал {target}",
+      "reject": "{target} отошёл и не дал себя потрогать {sender}"
+    },
+    "пнуть": {
+      "request": "{sender} хочет пнуть",
+      "accept": "{sender} пнул под зад {target}",
+      "reject": "{target} увернулся от пинка {sender}"
+    },
+    "расстрелять": {
+      "request": "{sender} хочет расстрелять",
+      "accept": "{sender} расстрелял со всего что было {target}",
+      "reject": "{target} как в фильмах увернулся от всех пуль {sender}"
+    },
+    "испугать": {
+      "request": "{sender} хочет испугать",
+      "accept": "{sender} напугал до мурашек {target}",
+      "reject": "{target} нисколько не испугался {sender}"
+    },
+    "изнасиловать": {
+      "request": "{sender} хочет изнасиловать",
+      "accept": "{sender} внезапно и принудительно изнасиловал {target}",
+      "reject": "{target} не дал себя и свои места {sender} просто так легко"
+    },
+    "отдаться": {
+      "request": "{sender} хочет отдаться",
+      "accept": "{sender} добровольно и полностью отдался {target}. Хорошего вечера вам)",
+      "reject": "{target} отшил {sender}"
+    },
+    "отравить": {
+      "request": "{sender} хочет отравить",
+      "accept": "{sender} безжалостно отравил чем то {target}",
+      "reject": "Иммунитет {target} выдержал яд {sender}"
+    },
+    "ударить": {
+      "request": "{sender} хочет ударить",
+      "accept": "{sender} сильно ударил {target} и попал {random_part}",
+      "reject": "{target} ловко увернулся от удара {sender}",
+      "random_parts": ["в глаз", "по щеке", "в челюсть", "в живот", "по виску"]
+    },
+    "убить": {
+      "request": "{sender} хочет убить",
+      "accept": "{sender} жестоко убил {target}",
+      "reject": "{target} выжил после попыток убийства от {sender}"
+    },
+    "понюхать": {
+      "request": "{sender} хочет понюхать",
+      "accept": "{sender} аккуратненько понюхал {target}",
+      "reject": "{target} отскочил от {sender} и не дал себя понюхать"
+    },
+    "кастрировать": {
+      "request": "{sender} хочет кастрировать",
+      "accept": "{sender} лишил яек (и наследства) {target}",
+      "reject": "{target} защитил своё наследство от {sender}"
+    },
+    "пожать руку": {
+      "request": "{sender} хочет пожать руку",
+      "accept": "{sender} крепко и с уважением пожал руку {target}",
+      "reject": "{target} молча посмотрел на руку {sender} и сделал каменное лицо, давая знак, что не будет пожимать руку"
+    },
+    "выебать": {
+      "request": "{sender} хочет выебать",
+      "accept": "{sender} аккуратненько так вошёл в {target}",
+      "reject": "{target} не дал {sender}"
+    },
+    "извиниться": {
+      "request": "{sender} хочет извиниться",
+      "accept": "{sender} раскаялся перед {target}",
+      "reject": "{target} не принял извинения от {sender}"
+    },
+    "лизнуть": {
+      "request": "{sender} хочет лизнуть",
+      "accept": "{sender} облизнул {target}",
+      "reject": "{target} отклонился от {sender}, не дав себя лизнуть"
+    },
+    "шлёпнуть": {
+      "request": "{sender} хочет шлёпнуть",
+      "accept": "{sender} шлёпнул {target}",
+      "reject": "{target} тактично отразил шлепок {sender}"
+    },
+    "послать нахуй": {
+      "request": "{sender} хочет послать нахуй",
+      "accept": "{sender} послал куда подальше {target}",
+      "reject": "{target} никуда не пошёл."
+    },
+    "похвалить": {
+      "request": "{sender} хочет похвалить",
+      "accept": "{sender} радостно похвалил {target}",
+      "reject": "{target} пропустил мимо ушей слова {sender}"
+    },
+    "сжечь": {
+      "request": "{sender} хочет сжечь",
+      "accept": "{sender} сжёг до тла {target}",
+      "reject": "{target} убежал от огня {sender}"
+    },
+    "покормить": {
+      "request": "{sender} хочет покормить",
+      "accept": "{sender} вкусно накормил {target}",
+      "reject": "{target} отказался есть от {sender}"
+    },
+    "дать пять": {
+      "request": "{sender} хочет дать пять",
+      "accept": "{sender} круто дал пять {target}",
+      "reject": "{target} не дал пять {sender}"
+    },
+    "забрать в рабство": {
+      "request": "{sender} хочет забрать в рабство",
+      "accept": "{sender} забрал к себе в свои рабы {target}",
+      "reject": "{target} сбежал из рабства {sender}"
+    },
+    "погладить": {
+      "request": "{sender} хочет погладить",
+      "accept": "{sender} нежненько погладил {target}",
+      "reject": "{target} отстранился от поглаживания {sender}"
+    },
+    "пригласить на чай": {
+      "request": "{sender} хочет пригласить на чай",
+      "accept": "{sender} пригласил к себе попить чаёчку {target}",
+      "reject": "{target} отказался от чая с {sender}"
+    },
+    "уебать": {
+      "request": "{sender} хочет уебать",
+      "accept": "{sender} уебал со всей дури {target} и попал {random_part}",
+      "reject": "{target} ловко уклонился от удара {sender}",
+      "random_parts": ["в глаз", "по щеке", "в челюсть", "в живот", "по виску"]
+    },
+    "отсосать": {
+      "request": "{sender} хочет отсосать",
+      "accept": "{sender} глубоко отсосал у {target}",
+      "reject": "{target} отказался от предложения {sender}"
+    },
+    "самоотсос": {
+      "request": "{sender} хочет самоотсосать",
+      "accept": "{sender} глубоко отсосал у себя. Гибкость на уровне!",
+      "reject": "{sender} не смог дотянуться до себя",
+      "description": "Попробовать отсосать самому себе"
+    },
+    "трахнуть": {
+      "request": "{sender} хочет трахнуть",
+      "accept": "{sender} в ускоренном ритме побывал в {target}",
+      "reject": "{target} отбился от настойчивых попыток {sender}"
+    },
+    "ущипнуть": {
+      "request": "{sender} хочет ущипнуть",
+      "accept": "{sender} неожиданно неожиданно ущипнул {target}",
+      "reject": "{target} отскочил от щипка {sender}"
+    },
+    "помериться": {
+      "request": "{sender} хочет помериться",
+      "accept": "{sender} померился хозяйством с {target}",
+      "reject": "{target} отказался меряться с {sender}"
+    },
+    "обкончать": {
+      "request": "{sender} хочет обкончать",
+      "accept": "{sender} смачно накончал {random_part} {target}",
+      "reject": "{target} увернулся от потока {sender}",
+      "random_parts": ["в глаз", "в рот", "внутрь", "на лицо", "на грудь", "на попку", "на животик"]
+    },
+    "записать на ноготочки": {
+      "request": "{sender} хочет записать на ноготочки",
+      "accept": "{sender} записал на маник {target}",
+      "reject": "{target} отказался от записи на маникюр от {sender}"
+    },
+    "делать секс": {
+      "request": "{sender} хочет делать секс",
+      "accept": "{sender} уединился с {target}",
+      "reject": "{target} не захотел уединяться с {sender}"
+    },
+    "связать": {
+      "request": "{sender} хочет связать",
+      "accept": "{sender} крепко связал {target}",
+      "reject": "{target} вырвался из верёвок {sender}"
+    },
+    "заставить": {
+      "request": "{sender} хочет заставить",
+      "accept": "{sender} принудительно заставил {target}",
+      "reject": "{target} сопротивлялся принуждению {sender}"
+    },
+    "повесить": {
+      "request": "{sender} хочет повесить",
+      "accept": "{sender} превратил в черешенку {target}",
+      "reject": "{target} сорвался с петли {sender}"
+    },
+    "уничтожить": {
+      "request": "{sender} хочет уничтожить",
+      "accept": "{sender} низвёл до атомов.. ну или аннигилировал {target}",
+      "reject": "{target} выжил после попытки уничтожения {sender}"
+    },
+    "продать": {
+      "request": "{sender} хочет продать",
+      "accept": "{sender} продал за дёшево {target}",
+      "reject": "{target} сбежал с аукциона {sender}"
+    },
+    "щекотать": {
+      "request": "{sender} хочет щекотать",
+      "accept": "{sender} щекотками довёл до истирического смеха {target}",
+      "reject": "{target} не поддался щекотке {sender}"
+    },
+    "взорвать": {
+      "request": "{sender} хочет взорвать",
+      "accept": "{sender} заминировал и подорвал {target}",
+      "reject": "{target} обезвредил бомбу {sender}"
+    },
+    "шмальнуть": {
+      "request": "{sender} хочет шмальнуть",
+      "accept": "{sender} шмальнул {target} и тот улетел ну ооооооочень далеко",
+      "reject": "{target} увернулся от выстрела {sender}"
+    },
+    "засосать": {
+      "request": "{sender} хочет засосать",
+      "accept": "{sender} оставил отметку в виде засоса у {target}",
+      "reject": "{target} оттолкнул {sender} от засоса"
+    },
+    "лечь": {
+      "request": "{sender} хочет лечь",
+      "accept": "{sender} прилёг рядом с {target}",
+      "reject": "{target} не лёг рядом с {sender}"
+    },
+    "унизить": {
+      "request": "{sender} хочет унизить",
+      "accept": "{sender} унизил ниже плинтуса {target}",
+      "reject": "{target} не поддался унижению от {sender}"
+    },
+    "арестовать": {
+      "request": "{sender} хочет арестовать",
+      "accept": "Походу кто то мусорнулся и {sender} арестовал {target}",
+      "reject": "{target} скрылся от ареста {sender}"
+    },
+    "наорать": {
+      "request": "{sender} хочет наорать",
+      "accept": "{sender} очень громко наорал на {target}",
+      "reject": "{target} заткнул уши от крика {sender}"
+    },
+    "рассмешить": {
+      "request": "{sender} хочет рассмешить",
+      "accept": "Юморист {sender} чуть ли не до смерти рассмешил {target}",
+      "reject": "{target} остался серьёзным несмотря на шутки {sender}"
+    },
+    "ушатать": {
+      "request": "{sender} хочет ушатать",
+      "accept": "{sender} к хренам ушатал {target}",
+      "reject": "{target} устоял после ушатывания {sender}"
+    },
+    "порвать": {
+      "request": "{sender} хочет порвать",
+      "accept": "{sender} порвал {target} как Тузик грелку",
+      "reject": "{target} не дал себя порвать {sender}"
+    },
+    "выкопать": {
+      "request": "{sender} хочет выкопать",
+      "accept": "{sender} нашёл археологическую ценность в виде {target}",
+      "reject": "{target} зарылся глубже от {sender}"
+    },
+    "сожрать": {
+      "request": "{sender} хочет сожрать",
+      "accept": "{sender} кусьн.. СОЖРАЛ НАХРЕН {target}",
+      "reject": "{target} вырвался из пасти {sender}"
+    },
+    "подстричь налысо": {
+      "request": "{sender} хочет подстричь налысо",
+      "accept": "Недо-меллстрой под ником {sender} подстриг налысо {target} за НИ-ЧЕ-ГО",
+      "reject": "{target} увернулся от ножниц {sender}"
+    },
+    "вьебать мозги": {
+      "request": "{sender} хочет выебать мозги",
+      "accept": "{sender} конкретно так заебал {target} и, заодно, трахнул мозги",
+      "reject": "{target} игнорировал вынос мозга {sender}"
+    },
+    "переехать": {
+      "request": "{sender} хочет переехать",
+      "accept": "{sender} пару раз переехал {target}",
+      "reject": "{target} перепрыгнул через машину {sender}"
+    },
+    "выпороть": {
+      "request": "{sender} хочет выпороть",
+      "accept": "{sender} выпорол до красна {target}",
+      "reject": "{target} увернулся от порки {sender}"
+    },
+    "закопать": {
+      "request": "{sender} хочет закопать",
+      "accept": "{sender} похоронил заживо {target}",
+      "reject": "{target} выбрался из ямы {sender}"
+    },
+    "пощупать": {
+      "request": "{sender} хочет пощупать",
+      "accept": "{sender} тщательно пощупал всего {target}",
+      "reject": "{target} не дал себя пощупать извращенцу {sender}"
+    },
+    "подрочить": {
+      "request": "{sender} хочет подрочить",
+      "accept": "{sender} передёрнул {target}",
+      "reject": "{target} прервал процесс {sender}"
+    },
+    "потискать": {
+      "request": "{sender} хочет потискать",
+      "accept": "{sender} потискал {target} за его мягкие щёчки. Милотаа..",
+      "reject": "{target} не дал себя потискать {sender}"
+    },
+    "подарить": {
+      "request": "{sender} хочет подарить",
+      "accept": "{sender} подарил от всего сердца подарочек {target}",
+      "reject": "{target} вернул подарок {sender}"
+    },
+    "выпить": {
+      "request": "{sender} хочет выпить",
+      "accept": "{sender} разделил пару бокалов с {target}",
+      "reject": "{target} отказался пить с {sender}"
+    },
+    "наказать": {
+      "request": "{sender} хочет наказать",
+      "accept": "Суровый {sender} наказал проказника {target}",
+      "reject": "{target} избежал наказания от {sender}"
+    },
+    "разорвать очко": {
+      "request": "{sender} хочет разорвать очко",
+      "accept": "{sender} порвал напрочь задний проход {target}",
+      "reject": "{target} защитил задний проход от {sender}"
+    },
+    "довести до сквирта": {
+      "request": "{sender} хочет довести до сквирта",
+      "accept": "{sender} довёл до мощного и струйного фонтана {target}",
+      "reject": "{target} не поддался доведению {sender}"
+    },
+    "напоить": {
+      "request": "{sender} хочет напоить",
+      "accept": "{sender} споил в стельку {target}",
+      "reject": "{target} протрезвел от попыток {sender}"
+    },
+    "отправить в дурку": {
+      "request": "{sender} хочет отправить в дурку",
+      "accept": "{sender} отправил прямиком в диспансер {target}. Шизоид, быстро в палату!",
+      "reject": "{target} доказал свою нормальность {sender}"
+    },
+    "оторвать член": {
+      "request": "{sender} хочет оторвать член",
+      "accept": "АЙ..\n\n<tg-spoiler>{sender} оторвал к херам наследство у {target}.</tg-spoiler>",
+      "reject": "{target} сохранил своё наследство от {sender}"
+    },
+    "цыц": {
+      "request": "{sender} хочет заткнуть (цыц)",
+      "accept": "{sender} заткнул {target} используя кляп и кинул в подвал. А нехер выделываться было.",
+      "reject": "{target} продолжил говорить несмотря на {sender}"
+    },
+    "цыц!": {
+      "request": "{sender} хочет заткнуть (цыц!)",
+      "accept": "Уууу.. {sender} закрыл ротик {target} и привязал к кроватке. Знаешь.. я не думаю что тебе что то хорошее светит.. а хотя может.. хз крч.",
+      "reject": "{target} вырвался из кроватки {sender}"
+    }
+  }
+}
