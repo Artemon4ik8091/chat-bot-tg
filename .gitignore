@@ -2,3 +2,8 @@ db.json
 bot.py
 *.db
 .DS_Store
+la.json
+messages.json
+user_data.json
+users.json
+warns.json

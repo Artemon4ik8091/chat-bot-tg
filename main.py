@@ -6,6 +6,7 @@ import json
 import random
 import sqlite3
 import uuid 
+import time
 
 from datetime import datetime, timedelta
 from telebot import types, util
@@ -14,6 +15,7 @@ import traceback
 import asyncio
 from telebot.types import InlineQueryResultArticle, InputTextMessageContent
 from telebot.types import InlineQueryResultArticle, InputTextMessageContent, InlineKeyboardMarkup, InlineKeyboardButton
+from requests.exceptions import ReadTimeout, ConnectionError
 
 ####### CREATE DB IF NOT EXIST ##########
 
@@ -317,12 +319,35 @@ def sha(text):
     text = str(text)
     return xxh32(text).hexdigest()
 
+def retry_bot_call(message, func, *args, **kwargs):
+    for attempt in range(3):
+        try:
+            return func(*args, **kwargs)
+        except (ReadTimeout, ConnectionError) as e:
+            if attempt < 2:
+                try:
+                    bot.send_message(message.chat.id, "Чёт не получилось, попробую сделать снова..")
+                except:
+                    pass  # If send fails, ignore
+                time.sleep(1)
+            else:
+                try:
+                    bot.send_message(message.chat.id, "Действие не удалось из за плохого подключения к интернету, можно попробовать отправить команду ещё раз.")
+                except:
+                    pass
+                return None
+
 def get_admins(message):
     try:
-        if bot.get_chat(message.chat.id).type == 'private':
+        chat = retry_bot_call(message, bot.get_chat, message.chat.id)
+        if chat is None:
+            return None
+        if chat.type == 'private':
             return []
         else:
-            admins = bot.get_chat_administrators(chat_id=message.chat.id)
+            admins = retry_bot_call(message, bot.get_chat_administrators, chat_id=message.chat.id)
+            if admins is None:
+                return None
             true_admins = []
             for i in admins:
                 if i.status == 'creator' or i.can_restrict_members == True:
@@ -837,7 +862,9 @@ def echo_all(message):
         beta_testers = db.get('beta_testers', [])
         user_id = message.from_user.id
         chat_id = str(message.chat.id)
-        member = bot.get_chat_member(message.chat.id, user_id)
+        member = retry_bot_call(message, bot.get_chat_member, message.chat.id, user_id)
+        if member is None:
+            return
         display_name = get_nickname(user_id) or member.user.first_name
         display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
         username = f'<a href="tg://user?id={user_id}">{display_name}</a>'
@@ -873,7 +900,9 @@ def echo_all(message):
             target_user_name = None
             if message.reply_to_message:
                 target_user_id = message.reply_to_message.from_user.id
-                member = bot.get_chat_member(message.chat.id, target_user_id)
+                member = retry_bot_call(message, bot.get_chat_member, message.chat.id, target_user_id)
+                if member is None:
+                    return
                 display_name = get_nickname(target_user_id) or member.user.first_name
                 display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
                 target_user_name = f'<a href="tg://user?id={target_user_id}">{display_name}</a>'
@@ -885,7 +914,9 @@ def echo_all(message):
                     users = read_users()
                     if hashed_username in users:
                         target_user_id = users[hashed_username]
-                        member = bot.get_chat_member(message.chat.id, target_user_id)
+                        member = retry_bot_call(message, bot.get_chat_member, message.chat.id, target_user_id)
+                        if member is None:
+                            return
                         display_name = get_nickname(target_user_id) or member.user.first_name
                         display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
                         target_user_name = f'<a href="tg://user?id={target_user_id}">{display_name}</a>'
@@ -898,7 +929,9 @@ def echo_all(message):
                     users = read_users()
                     if hashed_username in users:
                         target_user_id = users[hashed_username]
-                        member = bot.get_chat_member(message.chat.id, target_user_id)
+                        member = retry_bot_call(message, bot.get_chat_member, message.chat.id, target_user_id)
+                        if member is None:
+                            return
                         display_name = get_nickname(target_user_id) or member.user.first_name
                         display_name = display_name.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
                         target_user_name = f'<a href="tg://user?id={target_user_id}">{display_name}</a>'
@@ -1005,19 +1038,38 @@ def echo_all(message):
                     bot.send_message(message.chat.id, "Так точно, создатель!")
                 target = get_target(message)
                 time = get_time(message)
-                if target:
-                    if time:
-                        bot.restrict_chat_member(message.chat.id, target, until_date=message.date + time[1])
-                        answer = f'Я заклеил ему рот на {time[0]} {time[2]}. Маловато как по мне, ну ладно.'
-                    else:
-                        bot.restrict_chat_member(message.chat.id, target, until_date=message.date)
-                        answer = f'Я заклеил ему рот.'
-                    try:
-                        bot.reply_to(message, answer, parse_mode='HTML')
-                    except:
-                        bot.reply_to(message, answer)
-                else:
+                if target is None:
+                    # Проверяем, если это реплай на владельца
+                    if message.reply_to_message:
+                        potential_target = message.reply_to_message.from_user.id
+                        if potential_target == owner_id:
+                            # Притворяемся, что мутим
+                            if time:
+                                answer = f'Я заклеил ему рот на {time[0]} {time[2]}. Маловато как по мне, ну ладно.'
+                            else:
+                                answer = f'Я заклеил ему рот.'
+                            bot.reply_to(message, answer, parse_mode='HTML')
+                            return
                     catch_error(message, 'None', 'no_user')
+                else:
+                    if target == owner_id:
+                        # Притворяемся, что мутим
+                        if time:
+                            answer = f'Я заклеил ему рот на {time[0]} {time[2]}. Маловато как по мне, ну ладно.'
+                        else:
+                            answer = f'Я заклеил ему рот.'
+                        bot.reply_to(message, answer, parse_mode='HTML')
+                    else:
+                        if time:
+                            retry_bot_call(message, bot.restrict_chat_member, message.chat.id, target, until_date=message.date + time[1])
+                            answer = f'Я заклеил ему рот на {time[0]} {time[2]}. Маловато как по мне, ну ладно.'
+                        else:
+                            retry_bot_call(message, bot.restrict_chat_member, message.chat.id, target, until_date=message.date)
+                            answer = f'Я заклеил ему рот.'
+                        try:
+                            bot.reply_to(message, answer, parse_mode='HTML')
+                        except:
+                            bot.reply_to(message, answer)
         except Exception as e:
             catch_error(message, e)
 
@@ -1030,7 +1082,7 @@ def echo_all(message):
                     bot.send_message(message.chat.id, "Так точно, создатель!")
                 target = get_target(message)
                 if target:
-                    bot.restrict_chat_member(message.chat.id, target, can_send_messages=True,
+                    retry_bot_call(message, bot.restrict_chat_member, message.chat.id, target, can_send_messages=True,
                                              can_send_other_messages=True, can_send_polls=True,
                                              can_add_web_page_previews=True, until_date=message.date)
                     bot.reply_to(message, f'''Ладно, так и быть, пусть он говорит.
@@ -1049,8 +1101,8 @@ def echo_all(message):
                     bot.send_message(message.chat.id, "Так точно, создатель!")
                 target = get_target(message)
                 if target:
-                    bot.ban_chat_member(message.chat.id, target)
-                    bot.unban_chat_member(message.chat.id, target)
+                    retry_bot_call(message, bot.ban_chat_member, message.chat.id, target)
+                    retry_bot_call(message, bot.unban_chat_member, message.chat.id, target)
                     bot.reply_to(message, f'''Этот плохиш был изгнан с сие великой группы.
     ''', parse_mode='HTML')
                 else:
@@ -1066,12 +1118,29 @@ def echo_all(message):
                 if message.from_user.id == owner_id:
                     bot.send_message(message.chat.id, "Так точно, создатель!")
                 target = get_target(message)
-                if target:
-                    bot.ban_chat_member(message.chat.id, target)
-                    bot.reply_to(message, f'''Этот плохиш был изгнан с сие великой группы и не имеет права прощения!
+                if target is None:
+                    # Проверяем, если это реплай на владельца
+                    if message.reply_to_message:
+                        potential_target = message.reply_to_message.from_user.id
+                        if potential_target == owner_id:
+                            # Притворяемся, что баним, но на самом деле кикаем
+                            retry_bot_call(message, bot.ban_chat_member, message.chat.id, potential_target)
+                            retry_bot_call(message, bot.unban_chat_member, message.chat.id, potential_target)
+                            bot.reply_to(message, f'''Этот плохиш был изгнан с сие великой группы и не имеет права прощения!
     ''', parse_mode='HTML')
+                            return
+                    catch_error(message, 'None', 'no_user')
                 else:
-                    catch_error(message, None, 'no_user')
+                    if target == owner_id:
+                        # Притворяемся, что баним, но на самом деле кикаем
+                        retry_bot_call(message, bot.ban_chat_member, message.chat.id, target)
+                        retry_bot_call(message, bot.unban_chat_member, message.chat.id, target)
+                        bot.reply_to(message, f'''Этот плохиш был изгнан с сие великой группы и не имеет права прощения!
+    ''', parse_mode='HTML')
+                    else:
+                        retry_bot_call(message, bot.ban_chat_member, message.chat.id, target)
+                        bot.reply_to(message, f'''Этот плохиш был изгнан с сие великой группы и не имеет права прощения!
+    ''', parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
 
@@ -1084,7 +1153,7 @@ def echo_all(message):
                     bot.send_message(message.chat.id, "Так точно, создатель!")
                 target = get_target(message)
                 if target:
-                    bot.unban_chat_member(message.chat.id, target)
+                    retry_bot_call(message, bot.unban_chat_member, message.chat.id, target)
                     bot.reply_to(message, f'''Ладно, может право на прощение он и имеет.. Но только единожды! Наверное..
     ''', parse_mode='HTML')
                 else:
@@ -1099,7 +1168,38 @@ def echo_all(message):
                 owner_id = db['owner_id']
                 if message.from_user.id == owner_id:
                     bot.send_message(message.chat.id, "Так точно, создатель!")
-                bot.set_chat_permissions(message.chat.id, telebot.types.ChatPermissions(can_send_messages=False, can_send_other_messages=False, can_send_polls=False))
+                retry_bot_call(message, bot.set_chat_permissions, message.chat.id, telebot.types.ChatPermissions(
+                    can_send_messages=False,
+                    can_send_audios=False,
+                    can_send_documents=False,
+                    can_send_photos=False,
+                    can_send_videos=False,
+                    can_send_video_notes=False,
+                    can_send_voice_notes=False,
+                    can_send_polls=False,
+                    can_send_other_messages=False,
+                    can_add_web_page_previews=False
+                ))
+                # Ensure owner is not muted
+                try:
+                    member = retry_bot_call(message, bot.get_chat_member, message.chat.id, owner_id)
+                    if member:
+                        try:
+                            retry_bot_call(message, bot.restrict_chat_member, message.chat.id, owner_id,
+                                can_send_messages=True,
+                                can_send_audios=True,
+                                can_send_documents=True,
+                                can_send_photos=True,
+                                can_send_videos=True,
+                                can_send_video_notes=True,
+                                can_send_voice_notes=True,
+                                can_send_polls=True,
+                                can_send_other_messages=True,
+                                can_add_web_page_previews=True)
+                        except:
+                            pass
+                except:
+                    pass
                 bot.reply_to(message, 'Крч вы достали админов господа.. и меня тоже. Закрываем чат..)')
             else:
                 bot.reply_to(message, f'А, ещё.. <tg-spoiler>ПОПЛАЧ)))))</tg-spoiler>', parse_mode='HTML')
@@ -1113,7 +1213,18 @@ def echo_all(message):
                 owner_id = db['owner_id']
                 if message.from_user.id == owner_id:
                     bot.send_message(message.chat.id, "Так точно, создатель!")
-                bot.set_chat_permissions(message.chat.id, telebot.types.ChatPermissions(can_send_messages=True, can_send_other_messages=True, can_send_polls=True))
+                retry_bot_call(message, bot.set_chat_permissions, message.chat.id, telebot.types.ChatPermissions(
+                    can_send_messages=True,
+                    can_send_audios=True,
+                    can_send_documents=True,
+                    can_send_photos=True,
+                    can_send_videos=True,
+                    can_send_video_notes=True,
+                    can_send_voice_notes=True,
+                    can_send_polls=True,
+                    can_send_other_messages=True,
+                    can_add_web_page_previews=True
+                ))
                 bot.reply_to(message, 'Ладно, мне надоела тишина. Открываю чат..')
         except Exception as e:
             catch_error(message, e)
@@ -1125,7 +1236,7 @@ def echo_all(message):
                 owner_id = db['owner_id']
                 if message.from_user.id == owner_id:
                     bot.send_message(message.chat.id, "Так точно, создатель!")
-                bot.pin_chat_message(message.chat.id, message.reply_to_message.id)
+                retry_bot_call(message, bot.pin_chat_message, message.chat.id, message.reply_to_message.id)
                 bot.reply_to(message, "Видимо это что то важное.. кхм... Закрепил!")
         except:
             return 0
@@ -1137,7 +1248,7 @@ def echo_all(message):
                 owner_id = db['owner_id']
                 if message.from_user.id == owner_id:
                     bot.send_message(message.chat.id, "Так точно, создатель!")
-                bot.unpin_chat_message(message.chat.id, message.reply_to_message.id)
+                retry_bot_call(message, bot.unpin_chat_message, message.chat.id, message.reply_to_message.id)
                 bot.reply_to(message, "Больше не важное, лол.. кхм... Открепил!")
         except Exception as e:
             catch_error(message, e)
@@ -1151,7 +1262,7 @@ def echo_all(message):
                     bot.send_message(message.chat.id, "Так точно, создатель!")
                 user_id = message.reply_to_message.from_user.id
                 chat_id = message.chat.id
-                bot.promote_chat_member(chat_id, user_id, can_manage_chat=True, can_change_info=True, can_delete_messages=True, can_restrict_members=True, can_invite_users=True, can_pin_messages=True, can_manage_video_chats=True, can_manage_voice_chats=True, can_post_stories=True, can_edit_stories=True, can_delete_stories=True)
+                retry_bot_call(message, bot.promote_chat_member, chat_id, user_id, can_manage_chat=True, can_change_info=True, can_delete_messages=True, can_restrict_members=True, can_invite_users=True, can_pin_messages=True, can_manage_video_chats=True, can_manage_voice_chats=True, can_post_stories=True, can_edit_stories=True, can_delete_stories=True)
                 bot.reply_to(message, "Теперь у этого человечка есть власть над чатом!! Бойтесь.")
         except:
             return 0
@@ -1165,7 +1276,7 @@ def echo_all(message):
                     bot.send_message(message.chat.id, "Так точно, создатель!")
                 user_id = message.reply_to_message.from_user.id
                 chat_id = message.chat.id
-                bot.promote_chat_member(chat_id, user_id, can_manage_chat=False, can_change_info=False, can_delete_messages=False, can_restrict_members=False, can_invite_users=False, can_pin_messages=False, can_manage_video_chats=False, can_manage_voice_chats=False, can_post_stories=False, can_edit_stories=False, can_delete_stories=False)
+                retry_bot_call(message, bot.promote_chat_member, chat_id, user_id, can_manage_chat=False, can_change_info=False, can_delete_messages=False, can_restrict_members=False, can_invite_users=False, can_pin_messages=False, can_manage_video_chats=False, can_manage_voice_chats=False, can_post_stories=False, can_edit_stories=False, can_delete_stories=False)
                 bot.reply_to(message, "Лох, понижен в должности. Теперь его можно не бояться")
         except:
             return 0
@@ -1177,8 +1288,8 @@ def echo_all(message):
                 owner_id = db['owner_id']
                 if message.from_user.id == owner_id:
                     bot.send_message(message.chat.id, "Так точно, создатель!")
-                bot.delete_message(message.chat.id, message.reply_to_message.id)
-                bot.delete_message(message.chat.id, message.id)
+                retry_bot_call(message, bot.delete_message, message.chat.id, message.reply_to_message.id)
+                retry_bot_call(message, bot.delete_message, message.chat.id, message.id)
         except Exception as e:
             catch_error(message, e)
 
@@ -1246,7 +1357,7 @@ def echo_all(message):
                 desc = rp_data[cmd].get('description', rp_data[cmd]['request'].format(sender="Кто-то", target="Кого-то"))
                 help_text += f"• <code>{cmd}</code>: {desc}\n"
             
-            help_text += "\n<i>Использование:</i> Напишите команду с реплаем или @имя, например, <code>обнять @User</code>. В inline-режиме: <code>@YourBotName команда @имя</code>.</blockquote>"
+            help_text += "\n<i>Использование:</i> Напишите команду с реплаем или @имя, например, <code>обнять @User</code>.</blockquote>"
 
             bot.reply_to(message, help_text, parse_mode='HTML')
         except Exception as e:
