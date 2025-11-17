@@ -1465,15 +1465,16 @@ def echo_all(message):
 </blockquote>\n"""
 
             # RP-команды (динамически из JSON, отдельный blockquote)
-            help_text += "<blockquote expandable><b>РП-Команды</b>\n"
+            help_text_rp = "<blockquote expandable><b>РП-Команды</b>\n"
             for cmd in commands_list:
                 # Используем description, если есть, иначе request
                 desc = rp_data[cmd].get('description', rp_data[cmd]['request'].format(sender="Кто-то", target="Кого-то"))
-                help_text += f"• <code>{cmd}</code>: {desc}\n"
+                help_text_rp += f"• <code>{cmd}</code>: {desc}\n"
             
-            help_text += "\n<i>Использование:</i> Напишите команду с реплаем или @имя, например, <code>обнять @User</code>.</blockquote>"
+            help_text_rp += "\n<i>Использование:</i> Напишите команду с реплаем или @имя, например, <code>обнять @User</code>.</blockquote>"
 
             bot.reply_to(message, help_text, parse_mode='HTML')
+            bot.send_message(message.chat.id, help_text_rp, parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
 
@@ -1504,7 +1505,7 @@ def echo_all(message):
                 InlineKeyboardButton("Согласиться", callback_data=f"marriage_agree_{request_id}"),
                 InlineKeyboardButton("Отказаться", callback_data=f"marriage_reject_{request_id}")
             )
-            bot.send_message(chat_id, text, parse_mode='HTML', reply_markup=markup, disable_web_page_preview=True)
+            bot.send_message(chat_id, text, parse_mode='HTML', reply_markup=markup)
         except Exception as e:
             catch_error(message, e)
 
@@ -1515,7 +1516,7 @@ def echo_all(message):
             spouse_id = dissolve_marriage(chat_id, user_id)
             if spouse_id:
                 spouse_link = get_user_link_sync(spouse_id, chat_id)
-                bot.reply_to(message, f"Развод оформлен. Сожалеем, {spouse_link}.", parse_mode='HTML', disable_web_page_preview=True)
+                bot.reply_to(message, f"Развод оформлен. Сожалеем для {spouse_link}.", parse_mode='HTML')
             else:
                 bot.reply_to(message, "Вы не состоите в браке в этом чате.")
         except Exception as e:
@@ -1543,7 +1544,7 @@ def echo_all(message):
                     else:
                         duration = f"{days} дней"
                     text += f"{i}. {link1} 💍 {link2} (Заключен: {date_str}, Длительность: {duration})\n"
-                bot.send_message(message.chat.id, text, parse_mode='HTML', disable_web_page_preview=True)
+                bot.send_message(message.chat.id, text, parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
 
