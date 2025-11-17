@@ -106,6 +106,29 @@ def init_sqlite_db():
         cursor.execute('ALTER TABLE rp_requests ADD COLUMN sender_first_name TEXT')
         print('DEBUG: Added sender_first_name column to rp_requests table.')
     
+    # Новая таблица для браков
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS marriages (
+            chat_id TEXT,
+            spouse1_id INTEGER,
+            spouse2_id INTEGER,
+            created_at TEXT,
+            PRIMARY KEY (chat_id, spouse1_id, spouse2_id)
+        )
+    ''')
+    
+    # Новая таблица для запросов на брак
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS marriage_requests (
+            request_id TEXT PRIMARY KEY,
+            chat_id TEXT,
+            proposer_id INTEGER,
+            proposer_first_name TEXT,
+            target_id INTEGER,
+            created_at TEXT
+        )
+    ''')
+    
     conn.commit()
     conn.close()
     print('DEBUG: SQLite database initialized.')
@@ -207,6 +230,85 @@ def get_rp_request(request_id):
     result = cursor.fetchone()
     conn.close()
     return result if result else None
+
+def save_marriage_request(request_id, chat_id, proposer_id, target_id, proposer_first_name):
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    cursor.execute('INSERT INTO marriage_requests (request_id, chat_id, proposer_id, proposer_first_name, target_id, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+                   (request_id, str(chat_id), proposer_id, proposer_first_name, target_id, created_at))
+    conn.commit()
+    conn.close()
+
+def get_marriage_request(request_id):
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT chat_id, proposer_id, proposer_first_name, target_id FROM marriage_requests WHERE request_id = ?', (request_id,))
+    result = cursor.fetchone()
+    conn.close()
+    return result if result else None
+
+def delete_marriage_request(request_id):
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM marriage_requests WHERE request_id = ?', (request_id,))
+    conn.commit()
+    conn.close()
+
+def is_married(chat_id, user_id):
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT 1 FROM marriages 
+        WHERE chat_id = ? AND (spouse1_id = ? OR spouse2_id = ?)
+    ''', (str(chat_id), user_id, user_id))
+    result = cursor.fetchone()
+    conn.close()
+    return bool(result)
+
+def get_spouse(chat_id, user_id):
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT spouse1_id, spouse2_id FROM marriages 
+        WHERE chat_id = ? AND (spouse1_id = ? OR spouse2_id = ?)
+    ''', (str(chat_id), user_id, user_id))
+    result = cursor.fetchone()
+    conn.close()
+    if result:
+        return result[1] if result[0] == user_id else result[0]
+    return None
+
+def register_marriage(chat_id, user1_id, user2_id):
+    min_id, max_id = sorted([user1_id, user2_id])
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    cursor.execute('INSERT OR IGNORE INTO marriages (chat_id, spouse1_id, spouse2_id, created_at) VALUES (?, ?, ?, ?)',
+                   (str(chat_id), min_id, max_id, created_at))
+    conn.commit()
+    conn.close()
+
+def dissolve_marriage(chat_id, user_id):
+    spouse_id = get_spouse(chat_id, user_id)
+    if spouse_id:
+        min_id, max_id = sorted([user_id, spouse_id])
+        conn = sqlite3.connect('bot_data.db')
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM marriages WHERE chat_id = ? AND spouse1_id = ? AND spouse2_id = ?',
+                       (str(chat_id), min_id, max_id))
+        conn.commit()
+        conn.close()
+        return spouse_id
+    return None
+
+def get_all_marriages(chat_id):
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT spouse1_id, spouse2_id, created_at FROM marriages WHERE chat_id = ?', (str(chat_id),))
+    results = cursor.fetchall()
+    conn.close()
+    return results
 
 def read_users():
     conn = sqlite3.connect('bot_data.db')
@@ -691,6 +793,13 @@ def get_all_chats():
     conn.close()
     return chats
 
+def get_profile_addition(chat_id, user_id):
+    spouse_id = get_spouse(chat_id, user_id)
+    if spouse_id:
+        spouse_link = get_user_link_sync(spouse_id, chat_id)
+        return f"\n💍 В браке с {spouse_link}"
+    return ""
+
 @bot.message_handler(content_types=['new_chat_members'])
 def handle_new_chat_members(message):
     db = read_db()
@@ -884,8 +993,9 @@ def echo_all(message):
         # Добавляем статус "Просто пользователь", если пользователь не владелец и не бета-тестер
         status_text = "\n👤 Просто пользователь" if not owner_text and not beta_text else ""
         description_text = f"\n📝 {get_description(user_id)}" if get_description(user_id) else ""
+        marriage_text = get_profile_addition(int(chat_id), user_id)
         reply_text = (
-            f"Ты <b>{username}</b>{owner_text}{beta_text}{status_text}{description_text}\n\n"
+            f"Ты <b>{username}</b>{owner_text}{beta_text}{status_text}{description_text}{marriage_text}\n\n"
             f"Последний твой актив:\n{last_active_time}\n"
             f"Краткая стата (д|н|м|вся):\n{daily_count}|{weekly_count}|{monthly_count}|{all_time_count}"
         )
@@ -959,8 +1069,9 @@ def echo_all(message):
                 # Добавляем статус "Просто пользователь", если пользователь не владелец и не бета-тестер
                 status_text = "\n👤 Просто пользователь" if not owner_text and not beta_text else ""
                 description_text = f"\n📝 {get_description(target_user_id)}" if get_description(target_user_id) else ""
+                marriage_text = get_profile_addition(int(chat_id), target_user_id)
                 reply_text = (
-                    f"Это <b>{target_user_name}</b>{owner_text}{beta_text}{status_text}{description_text}\n\n"
+                    f"Это <b>{target_user_name}</b>{owner_text}{beta_text}{status_text}{description_text}{marriage_text}\n\n"
                     f"Последний актив:\n{last_active_time}\n"
                     f"Краткая стата (д|н|м|вся):\n{daily_count}|{weekly_count}|{monthly_count}|{all_time_count}"
                 )
@@ -1348,6 +1459,9 @@ def echo_all(message):
 +чат/-чат - Открытие/закрытие чата
 +админ/-админ - Выдача/снятие прав администратора пользователя
 Барбарис, скажи - Повторяет за вами (запятая кст не обязательна, но и с ней оно работает)
+Брак (reply) - Предложить брак пользователю.
+Развод - Развестись с текущим супругом.
+Браки / Список браков - Список всех браков в чате.
 </blockquote>\n"""
 
             # RP-команды (динамически из JSON, отдельный blockquote)
@@ -1360,6 +1474,76 @@ def echo_all(message):
             help_text += "\n<i>Использование:</i> Напишите команду с реплаем или @имя, например, <code>обнять @User</code>.</blockquote>"
 
             bot.reply_to(message, help_text, parse_mode='HTML')
+        except Exception as e:
+            catch_error(message, e)
+
+    if message.text.upper() == 'БРАК':
+        try:
+            if not message.reply_to_message:
+                bot.reply_to(message, "Команда 'Брак' должна быть в ответ на сообщение пользователя.")
+                return
+            target_id = message.reply_to_message.from_user.id
+            proposer_id = message.from_user.id
+            chat_id = message.chat.id
+            if proposer_id == target_id:
+                bot.reply_to(message, "Нельзя вступить в брак с самим собой.")
+                return
+            if is_married(chat_id, proposer_id):
+                bot.reply_to(message, "Вы уже состоите в браке в этом чате.")
+                return
+            if is_married(chat_id, target_id):
+                bot.reply_to(message, "Этот пользователь уже состоит в браке в этом чате.")
+                return
+            request_id = str(uuid.uuid4())
+            save_marriage_request(request_id, chat_id, proposer_id, target_id, message.from_user.first_name)
+            proposer_link = get_user_link_sync(proposer_id, chat_id)
+            target_link = get_user_link_sync(target_id, chat_id)
+            text = f"{proposer_link} хочет вступить в брак с {target_link}!"
+            markup = InlineKeyboardMarkup()
+            markup.add(
+                InlineKeyboardButton("Согласиться", callback_data=f"marriage_agree_{request_id}"),
+                InlineKeyboardButton("Отказаться", callback_data=f"marriage_reject_{request_id}")
+            )
+            bot.send_message(chat_id, text, parse_mode='HTML', reply_markup=markup, disable_web_page_preview=True)
+        except Exception as e:
+            catch_error(message, e)
+
+    if message.text.upper() == 'РАЗВОД':
+        try:
+            user_id = message.from_user.id
+            chat_id = message.chat.id
+            spouse_id = dissolve_marriage(chat_id, user_id)
+            if spouse_id:
+                spouse_link = get_user_link_sync(spouse_id, chat_id)
+                bot.reply_to(message, f"Развод оформлен. Сожалеем, {spouse_link}.", parse_mode='HTML', disable_web_page_preview=True)
+            else:
+                bot.reply_to(message, "Вы не состоите в браке в этом чате.")
+        except Exception as e:
+            catch_error(message, e)
+
+    if message.text.upper() in ['БРАКИ', 'СПИСОК БРАКОВ']:
+        try:
+            marriages = get_all_marriages(message.chat.id)
+            if not marriages:
+                bot.reply_to(message, "В этом чате нет зарегистрированных браков.")
+            else:
+                text = "Список браков в чате:\n"
+                for i, (sp1, sp2, created_str) in enumerate(marriages, 1):
+                    link1 = get_user_link_sync(sp1, message.chat.id)
+                    link2 = get_user_link_sync(sp2, message.chat.id)
+                    created_dt = datetime.strptime(created_str, '%Y-%m-%d %H:%M:%S')
+                    date_str = created_dt.strftime('%Y-%m-%d')
+                    now = datetime.now()
+                    delta = now - created_dt
+                    days = delta.days
+                    if days == 0:
+                        duration = "менее дня"
+                    elif days == 1:
+                        duration = "1 день"
+                    else:
+                        duration = f"{days} дней"
+                    text += f"{i}. {link1} 💍 {link2} (Заключен: {date_str}, Длительность: {duration})\n"
+                bot.send_message(message.chat.id, text, parse_mode='HTML', disable_web_page_preview=True)
         except Exception as e:
             catch_error(message, e)
 
@@ -1574,5 +1758,48 @@ def handle_callback_query(call):
     except Exception as e:
         logging.error(f'Callback error: {e}')
         bot.answer_callback_query(call.id, f"Ошибка при обработке действия: {str(e)}")
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('marriage_'))
+def handle_marriage_callback(call):
+    try:
+        parts = call.data.split('_')
+        if len(parts) != 3:
+            bot.answer_callback_query(call.id, "Неверный формат данных.")
+            return
+        _, action, request_id = parts
+        request_data = get_marriage_request(request_id)
+        if not request_data:
+            bot.answer_callback_query(call.id, "Запрос устарел или не найден.")
+            return
+        chat_id, proposer_id, proposer_first_name, target_id = request_data
+        clicker_id = call.from_user.id
+        if clicker_id != target_id:
+            bot.answer_callback_query(call.id, "Только адресат может ответить на предложение.")
+            return
+        proposer_link = get_user_link_sync(proposer_id, int(chat_id))
+        target_link = get_user_link_sync(target_id, int(chat_id))
+        if action == 'agree':
+            if is_married(int(chat_id), proposer_id) or is_married(int(chat_id), target_id):
+                response_text = "Один из вас уже состоит в браке. Предложение аннулировано."
+            else:
+                register_marriage(int(chat_id), proposer_id, target_id)
+                response_text = f"Брак заключен между {proposer_link} и {target_link}!"
+        elif action == 'reject':
+            response_text = f"{target_link} отказался от предложения {proposer_link}. Жаль..."
+        else:
+            bot.answer_callback_query(call.id, "Неизвестное действие.")
+            return
+        if call.message:
+            bot.edit_message_text(
+                text=response_text,
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                parse_mode='HTML'
+            )
+        delete_marriage_request(request_id)
+        bot.answer_callback_query(call.id, "Действие обработано!")
+    except Exception as e:
+        logging.error(f'Marriage callback error: {e}')
+        bot.answer_callback_query(call.id, f"Ошибка: {str(e)}")
 
 bot.polling(none_stop=True)
