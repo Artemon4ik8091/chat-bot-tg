@@ -673,6 +673,7 @@ def remove_warn(user_id):
 db = read_db()
 print('DEBUG: Инициализация бота...')
 bot = telebot.TeleBot(db['token'])
+telebot.apihelper.proxy = {'https': 'http://127.0.0.1:2080'}
 print('DEBUG: Бот успешно инициализирован. Запуск polling...')
 
 def get_user_link_sync(user_id, chat_id):
