@@ -23,9 +23,11 @@ from requests.exceptions import ReadTimeout, ConnectionError
 from xxhash import xxh32
 
 from rp_command_utils import (
+    load_chat_rp_commands,
     load_rp_commands,
     parse_rp_command_creation,
     parse_rp_command_delete,
+    save_chat_rp_commands,
     save_rp_commands,
 )
 
@@ -42,6 +44,7 @@ else:
     print('DEBUG: Файл db.json существует.')
 
 rp_data = load_rp_commands('rp_commands.json')
+chat_rp_data = load_chat_rp_commands('rp_chat_commands.json')
 
 from contextlib import contextmanager
 
@@ -164,9 +167,20 @@ def read_db():
 
 
 def persist_rp_commands():
-    global rp_data
-    rp_data = save_rp_commands(rp_data, 'rp_commands.json')['commands']
+    global rp_data, chat_rp_data
+    save_rp_commands(rp_data, 'rp_commands.json')
+    save_chat_rp_commands(chat_rp_data, 'rp_chat_commands.json')
     return rp_data
+
+
+def get_chat_rp_commands(chat_id):
+    return chat_rp_data.get(str(chat_id), {})
+
+
+def get_effective_rp_commands(chat_id):
+    effective = dict(rp_data)
+    effective.update(get_chat_rp_commands(chat_id))
+    return effective
 
 
 def write_db(db):
@@ -525,6 +539,17 @@ def have_rights(message, set_la=False):
         bot.reply_to(message, 'Да кто ты такой, чтобы я тебя слушался??')
         return False
 
+
+def can_manage_rp_commands(message):
+    db = read_db()
+    owner_id = db.get('owner_id')
+    if owner_id and message.from_user.id == owner_id:
+        return True
+    if getattr(message.chat, 'type', None) == 'private':
+        return False
+    admins = get_admins(message)
+    return bool(admins and message.from_user.id in admins)
+
 def key_by_value(dictionary, key):
     for i in dictionary:
         if dictionary[i] == key:
@@ -673,7 +698,7 @@ def remove_warn(user_id):
 db = read_db()
 print('DEBUG: Инициализация бота...')
 bot = telebot.TeleBot(db['token'])
-telebot.apihelper.proxy = {'https': 'http://127.0.0.1:2080'}
+#telebot.apihelper.proxy = {'https': 'http://127.0.0.1:2080'}
 print('DEBUG: Бот успешно инициализирован. Запуск polling...')
 
 def get_user_link_sync(user_id, chat_id):
@@ -1355,7 +1380,8 @@ def echo_all(message):
 
     if message.text and message.text.upper() == ".ХЕЛП":
         try:
-            commands_list = sorted(rp_data.keys())
+            effective_commands = get_effective_rp_commands(message.chat.id)
+            commands_list = sorted(effective_commands.keys())
 
             help_text = "<b>Помощь по командам:</b>\n\n"
             help_text += """<blockquote expandable><b>Основные команды бота</b>
@@ -1390,7 +1416,8 @@ def echo_all(message):
 
             help_text_rp = "<blockquote expandable><b>РП-Команды</b>\n"
             for cmd in commands_list:
-                desc = rp_data[cmd].get('description', rp_data[cmd]['request'].format(sender="Кто-то", target="Кого-то"))
+                command_data = effective_commands[cmd]
+                desc = command_data.get('description', command_data['request'].format(sender="Кто-то", target="Кого-то"))
                 help_text_rp += f"• <code>{cmd}</code>: {desc}\n"
 
             help_text_rp += "\n<i>Использование:</i> Напишите команду с реплаем или @имя, например, <code>обнять @User</code>."
@@ -1415,28 +1442,28 @@ def echo_all(message):
 
     if message.text and message.text.upper().startswith('+РПК'):
         try:
-            db = read_db()
-            owner_id = db['owner_id']
-            if message.from_user.id != owner_id:
-                bot.reply_to(message, "Эту команду может использовать только владелец бота.")
+            if not can_manage_rp_commands(message):
+                bot.reply_to(message, "Эту команду могут использовать только владелец бота или администраторы чата.")
                 return
             parsed = parse_rp_command_creation(message.text)
             if not parsed:
                 bot.reply_to(message, "Формат: <code>+рпк имя | request | accept | reject | [описание] | [вариант1, вариант2, вариант3]</code>", parse_mode='HTML')
                 return
             command_name, request, accept, reject, description, random_parts = parsed
-            existed = command_name in rp_data
-            rp_data[command_name] = {
+            chat_id = str(message.chat.id)
+            chat_commands = chat_rp_data.setdefault(chat_id, {})
+            existed = command_name in chat_commands
+            chat_commands[command_name] = {
                 'request': request,
                 'accept': accept,
                 'reject': reject,
             }
             if description:
-                rp_data[command_name]['description'] = description
+                chat_commands[command_name]['description'] = description
             if random_parts:
-                rp_data[command_name]['random_parts'] = random_parts
-            elif 'random_parts' in rp_data[command_name]:
-                del rp_data[command_name]['random_parts']
+                chat_commands[command_name]['random_parts'] = random_parts
+            elif 'random_parts' in chat_commands[command_name]:
+                del chat_commands[command_name]['random_parts']
             persist_rp_commands()
             action = 'обновлена' if existed else 'создана'
             bot.reply_to(message, f"РП-команда <code>{command_name}</code> {action}.", parse_mode='HTML')
@@ -1445,17 +1472,19 @@ def echo_all(message):
 
     if message.text and message.text.upper().startswith('-РПК'):
         try:
-            db = read_db()
-            owner_id = db['owner_id']
-            if message.from_user.id != owner_id:
-                bot.reply_to(message, "Эту команду может использовать только владелец бота.")
+            if not can_manage_rp_commands(message):
+                bot.reply_to(message, "Эту команду могут использовать только владелец бота или администраторы чата.")
                 return
             command_name = parse_rp_command_delete(message.text)
             if not command_name:
                 bot.reply_to(message, "Формат: <code>-рпк имя</code>", parse_mode='HTML')
                 return
-            if command_name in rp_data:
-                del rp_data[command_name]
+            chat_id = str(message.chat.id)
+            chat_commands = chat_rp_data.get(chat_id, {})
+            if command_name in chat_commands:
+                del chat_commands[command_name]
+                if not chat_commands:
+                    chat_rp_data.pop(chat_id, None)
                 persist_rp_commands()
                 bot.reply_to(message, f"РП-команда <code>{command_name}</code> удалена.", parse_mode='HTML')
             else:
@@ -1539,8 +1568,9 @@ def echo_all(message):
         normalized_text = message.text.lower().strip()
         command = None
         user_phrase = ''
+        effective_commands = get_effective_rp_commands(message.chat.id)
         # Сортируем команды по длине descending (чтобы "цыц!" матчился раньше "цыц")
-        for cmd in sorted(rp_data.keys(), key=len, reverse=True):
+        for cmd in sorted(effective_commands.keys(), key=len, reverse=True):
             if normalized_text.startswith(cmd):
                 command = cmd
                 user_phrase = normalized_text[len(cmd):].strip()
@@ -1561,11 +1591,13 @@ def echo_all(message):
                 # Self-команда: цель = sender
                 target_name = f'<a href="tg://user?id={sender_id}">{sender_display}</a>'
 
-            response_text = rp_data[command]['accept'].format(sender=sender_display, target=target_name)
-            if '{random_part}' in response_text:
-                random_parts = rp_data[command].get('random_parts', [])
-                if random_parts:
-                    response_text = response_text.replace('{random_part}', random.choice(random_parts))
+            command_data = effective_commands[command]
+            template = command_data['accept']
+            random_parts = command_data.get('random_parts', [])
+            if '{random_part}' in template and random_parts:
+                template = template.replace('{random_part}', random.choice(random_parts))
+            template = template.replace('{random_part}', '')
+            response_text = template.replace('{sender}', sender_display).replace('{target}', target_name)
             if user_phrase:
                 response_text += f'\nСо словами: {user_phrase}'
             try:
@@ -1673,18 +1705,21 @@ def handle_callback_query(call):
         logging.debug(f'Sender: {sender_display} ({sender_id}), Target: {target_display} ({target_id}), Command: {command}')
 
         # Формируем текст ответа
-        if command in rp_data:
+        effective_commands = get_effective_rp_commands(chat_id)
+        if command in effective_commands:
+            command_data = effective_commands[command]
             if action == 'accept':
-                response_text = rp_data[command]['accept'].format(sender=sender_display, target=target_link)
+                template = command_data['accept']
             elif action == 'reject':
-                response_text = rp_data[command]['reject'].format(sender=sender_display, target=target_link)
+                template = command_data['reject']
             else:
                 return
 
-            if '{random_part}' in response_text:
-                random_parts = rp_data[command].get('random_parts', [])
-                if random_parts:
-                    response_text = response_text.replace('{random_part}', random.choice(random_parts))
+            random_parts = command_data.get('random_parts', [])
+            if '{random_part}' in template and random_parts:
+                template = template.replace('{random_part}', random.choice(random_parts))
+            template = template.replace('{random_part}', '')
+            response_text = template.replace('{sender}', sender_display).replace('{target}', target_link)
 
             if phrase:
                 response_text += f"\nСо словами: {phrase}"

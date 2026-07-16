@@ -5,7 +5,13 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from rp_command_utils import parse_rp_command_creation, load_rp_commands, save_rp_commands
+from rp_command_utils import (
+    load_chat_rp_commands,
+    load_rp_commands,
+    parse_rp_command_creation,
+    save_chat_rp_commands,
+    save_rp_commands,
+)
 
 
 class RpCommandUtilsTests(unittest.TestCase):
@@ -44,6 +50,19 @@ class RpCommandUtilsTests(unittest.TestCase):
             save_rp_commands(commands, path)
             loaded = load_rp_commands(path)
             self.assertEqual(loaded, commands)
+        finally:
+            if os.path.exists(path):
+                os.remove(path)
+
+    def test_save_and_load_chat_rp_commands(self):
+        with tempfile.NamedTemporaryFile("w+", delete=False, suffix=".json") as handle:
+            path = handle.name
+
+        try:
+            chat_commands = {"123": {"ударить": {"request": "r", "accept": "a", "reject": "j"}}}
+            save_chat_rp_commands(chat_commands, path)
+            loaded = load_chat_rp_commands(path)
+            self.assertEqual(loaded, chat_commands)
         finally:
             if os.path.exists(path):
                 os.remove(path)

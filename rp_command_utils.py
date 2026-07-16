@@ -2,7 +2,11 @@ import json
 import os
 
 
-def load_rp_commands(path='rp_commands.json'):
+DEFAULT_RP_COMMANDS_PATH = 'rp_commands.json'
+DEFAULT_CHAT_RP_COMMANDS_PATH = 'rp_chat_commands.json'
+
+
+def load_rp_commands(path=DEFAULT_RP_COMMANDS_PATH):
     if not os.path.exists(path):
         return {}
     with open(path, 'r', encoding='utf-8') as handle:
@@ -12,11 +16,37 @@ def load_rp_commands(path='rp_commands.json'):
     return data
 
 
-def save_rp_commands(commands, path='rp_commands.json'):
+def _ensure_json_file(path):
+    if not os.path.exists(path):
+        with open(path, 'w', encoding='utf-8') as handle:
+            json.dump({}, handle, ensure_ascii=False, indent=2)
+            handle.write('\n')
+
+
+def load_chat_rp_commands(path=DEFAULT_CHAT_RP_COMMANDS_PATH):
+    _ensure_json_file(path)
+    with open(path, 'r', encoding='utf-8') as handle:
+        data = json.load(handle)
+    if isinstance(data, dict):
+        return data
+    return {}
+
+
+def save_chat_rp_commands(chat_commands, path=DEFAULT_CHAT_RP_COMMANDS_PATH):
+    _ensure_json_file(path)
+    with open(path, 'w', encoding='utf-8') as handle:
+        json.dump(chat_commands, handle, ensure_ascii=False, indent=2)
+        handle.write('\n')
+    return chat_commands
+
+
+def save_rp_commands(commands, path=DEFAULT_RP_COMMANDS_PATH, chat_commands=None, chat_path=DEFAULT_CHAT_RP_COMMANDS_PATH):
     payload = {'commands': commands}
     with open(path, 'w', encoding='utf-8') as handle:
         json.dump(payload, handle, ensure_ascii=False, indent=2)
         handle.write('\n')
+    if chat_commands is not None:
+        save_chat_rp_commands(chat_commands, chat_path)
     return payload
 
 
@@ -56,10 +86,11 @@ def parse_rp_command_delete(text):
         return None
 
     normalized = text.strip()
-    if not normalized.lower().startswith('.rpdelete'):
+    if not normalized.lower().startswith('-рпк') and not normalized.lower().startswith('.rpdelete'):
         return None
 
-    command_name = normalized[9:].strip().lower()
+    payload = normalized[4:].strip() if normalized.lower().startswith('-рпк') else normalized[9:].strip()
+    command_name = payload.lower()
     if not command_name:
         return None
     return command_name
