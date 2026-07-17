@@ -788,7 +788,7 @@ def handle_top_day(message):
     chat_id = str(message.chat.id)
     daily_stats = get_daily_stats(chat_id)
     sorted_stats = sorted(daily_stats.items(), key=lambda x: x[1], reverse=True)
-    text = "Топ пользователей за сегодня:\n"
+    text = "Топ крутышек за сегодня:\n"
     total_messages_chat = 0
     if not sorted_stats:
         text = "Статистика за сегодня пока пуста."
@@ -805,7 +805,7 @@ def handle_top_week(message):
     chat_id = str(message.chat.id)
     weekly_stats = get_weekly_stats(chat_id)
     sorted_stats = sorted(weekly_stats.items(), key=lambda x: x[1], reverse=True)
-    text = "Топ пользователей за неделю:\n"
+    text = "Топ крутышек за неделю:\n"
     total_messages_chat = 0
     if not sorted_stats:
         text = "Статистика за неделю пока пуста."
@@ -822,7 +822,7 @@ def handle_top_month(message):
     chat_id = str(message.chat.id)
     monthly_stats = get_monthly_stats(chat_id)
     sorted_stats = sorted(monthly_stats.items(), key=lambda x: x[1], reverse=True)
-    text = "Топ пользователей за месяц:\n"
+    text = "Топ крутышек за месяц:\n"
     total_messages_chat = 0
     if not sorted_stats:
         text = "Статистика за месяц пока пуста."
@@ -839,7 +839,7 @@ def handle_top_all_time(message):
     chat_id = str(message.chat.id)
     all_time_stats = get_all_time_stats(chat_id)
     sorted_stats = sorted(all_time_stats.items(), key=lambda x: x[1], reverse=True)
-    text = "Топ пользователей за всё время:\n"
+    text = "Топ крутышек за всё время:\n"
     total_messages_chat = 0
     if not sorted_stats:
         text = "Статистика за всё время пока пуста."
@@ -853,7 +853,7 @@ def handle_top_all_time(message):
 
 @bot.message_handler(commands=['start'])
 def start_message(message):
-    bot.reply_to(message, "Привет, я Барбариска, ваш чат бот, который поможет модерировать сие прекрасненькую группу. Надеюсь вам будет весело! Чтоб вызвать справку отправь .хелп")
+    bot.reply_to(message, "Привет, я Барбариска, ваш чат бот, который поможет модерировать сей прекрасненькую группу. Надеюсь вам будет весело! Чтоб вызвать справку отправь .хелп")
 
 @bot.message_handler(commands=['list'])
 def handle_list(message):
@@ -1501,13 +1501,13 @@ def echo_all(message):
             proposer_id = message.from_user.id
             chat_id = message.chat.id
             if proposer_id == target_id:
-                bot.reply_to(message, "Нельзя вступить в брак с самим собой.")
+                bot.reply_to(message, "Чел буквально поженил себя и свою руку.")
                 return
             if is_married(chat_id, proposer_id):
-                bot.reply_to(message, "Вы уже состоите в браке в этом чате.")
+                bot.reply_to(message, "Услышал тебя родной. Изменяем значит. Не не не бро. Сначала разведись.")
                 return
             if is_married(chat_id, target_id):
-                bot.reply_to(message, "Этот пользователь уже состоит в браке в этом чате.")
+                bot.reply_to(message, "Не успел. Этот человек уже в браке. Не пытайся быть третьим лишним.")
                 return
             request_id = str(uuid.uuid4())
             save_marriage_request(request_id, chat_id, proposer_id, target_id, message.from_user.first_name)
@@ -1532,7 +1532,7 @@ def echo_all(message):
                 spouse_link = get_user_link_sync(spouse_id, chat_id)
                 bot.reply_to(message, f"Развод оформлен. Сожалеем для {spouse_link}.", parse_mode='HTML')
             else:
-                bot.reply_to(message, "Вы не состоите в браке в этом чате.")
+                bot.reply_to(message, "Так ты не в браке даже.")
         except Exception as e:
             catch_error(message, e)
 
@@ -1789,7 +1789,7 @@ def handle_marriage_callback(call):
         chat_id, proposer_id, proposer_first_name, target_id = request_data
         clicker_id = call.from_user.id
         if clicker_id != target_id:
-            bot.answer_callback_query(call.id, "Только адресат может ответить на предложение.")
+            bot.answer_callback_query(call.id, "Не лезь не в своё дело, это не твоё предложение.")
             return
         proposer_link = get_user_link_sync(proposer_id, int(chat_id))
         target_link = get_user_link_sync(target_id, int(chat_id))
