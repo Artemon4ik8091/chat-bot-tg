@@ -51,6 +51,7 @@ from warn_utils import (
     set_chat_max_warns,
     set_chat_warn_duration,
 )
+from migrations import run_migrations
 
 ####### CREATE DB IF NOT EXIST ##########
 
@@ -80,105 +81,13 @@ def db_connection():
     finally:
         conn.close()
 
-# Initialize SQLite database
+# Initialize SQLite database via migrations
 def init_sqlite_db():
-    with db_connection() as cursor:
-    
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                hashed_username TEXT PRIMARY KEY,
-                user_id INTEGER
-            )
-        ''')
-    
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS low_admins (
-                chat_id TEXT,
-                username TEXT,
-                PRIMARY KEY (chat_id, username)
-            )
-        ''')
-    
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS warns (
-                user_id TEXT PRIMARY KEY,
-                warn_count INTEGER,
-                last_warn_time TEXT
-            )
-        ''')
-    
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS user_data (
-                chat_id TEXT,
-                user_id TEXT,
-                date TEXT,
-                message_count INTEGER,
-                last_activity TEXT,
-                PRIMARY KEY (chat_id, user_id, date)
-            )
-        ''')
-    
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS chats (
-                chat_id TEXT PRIMARY KEY,
-                chat_title TEXT
-            )
-        ''')
-    
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS user_profiles (
-                user_id INTEGER PRIMARY KEY,
-                nickname TEXT,
-                description TEXT
-            )
-        ''')
-
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS rp_requests (
-                request_id TEXT PRIMARY KEY,
-                chat_id TEXT,
-                sender_id INTEGER,
-                sender_first_name TEXT,  -- Новое поле
-                target_id INTEGER,
-                command TEXT,
-                phrase TEXT,
-                created_at TEXT
-            )
-        ''')
-
-        # Проверяем, существует ли столбец sender_first_name
-        cursor.execute("PRAGMA table_info(rp_requests)")
-        columns = [info[1] for info in cursor.fetchall()]
-        if 'sender_first_name' not in columns:
-            cursor.execute('ALTER TABLE rp_requests ADD COLUMN sender_first_name TEXT')
-            print('DEBUG: Added sender_first_name column to rp_requests table.')
-    
-        # Новая таблица для браков
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS marriages (
-                chat_id TEXT,
-                spouse1_id INTEGER,
-                spouse2_id INTEGER,
-                created_at TEXT,
-                PRIMARY KEY (chat_id, spouse1_id, spouse2_id)
-            )
-        ''')
-    
-        # Новая таблица для запросов на брак
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS marriage_requests (
-                request_id TEXT PRIMARY KEY,
-                chat_id TEXT,
-                proposer_id INTEGER,
-                proposer_first_name TEXT,
-                target_id INTEGER,
-                created_at TEXT
-            )
-        ''')
-    
-        init_warn_tables(cursor)
-
-    print('DEBUG: SQLite database initialized.')
+    applied = run_migrations('bot_data.db', make_backup=True)
+    if applied:
+        print(f'DEBUG: SQLite database migrated ({len(applied)} migrations applied).')
+    else:
+        print('DEBUG: SQLite database is up to date.')
 
 init_sqlite_db()
 
