@@ -9,3 +9,5 @@ users.json
 warns.json
 .vscode/
 rp_chat_commands.json
+__pycache__/
+*.py[cod]

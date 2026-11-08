@@ -6,6 +6,7 @@ import random
 import re
 import sqlite3
 import subprocess
+import threading
 import time
 import traceback
 import uuid
@@ -29,6 +30,26 @@ from rp_command_utils import (
     parse_rp_command_delete,
     save_chat_rp_commands,
     save_rp_commands,
+)
+from shipping_utils import (
+    format_shipping_message,
+    generate_ship_name,
+    get_chat_shipping_candidates,
+    is_shipping_command,
+    pick_random_pair,
+)
+from warn_utils import (
+    add_warn,
+    cleanup_expired_warns,
+    format_duration,
+    get_chat_warn_settings,
+    get_user_warn_count,
+    get_user_warns,
+    init_warn_tables,
+    parse_duration_string,
+    remove_warn,
+    set_chat_max_warns,
+    set_chat_warn_duration,
 )
 
 ####### CREATE DB IF NOT EXIST ##########
@@ -155,9 +176,22 @@ def init_sqlite_db():
             )
         ''')
     
+        init_warn_tables(cursor)
+
     print('DEBUG: SQLite database initialized.')
 
 init_sqlite_db()
+
+def warn_cleanup_worker():
+    while True:
+        try:
+            with db_connection() as cursor:
+                cleanup_expired_warns(cursor)
+        except Exception as e:
+            print(f"DEBUG: Error in warn cleanup: {e}")
+        time.sleep(60)
+
+threading.Thread(target=warn_cleanup_worker, daemon=True, name="WarnCleanupWorker").start()
 
 ############ WORK WITH DBs ##########
 
@@ -550,6 +584,16 @@ def can_manage_rp_commands(message):
     admins = get_admins(message)
     return bool(admins and message.from_user.id in admins)
 
+def can_manage_warn_settings(message):
+    db = read_db()
+    owner_id = db.get('owner_id')
+    if owner_id and message.from_user.id == owner_id:
+        return True
+    if getattr(message.chat, 'type', None) == 'private':
+        return False
+    admins = get_admins(message)
+    return bool(admins and message.from_user.id in admins)
+
 def key_by_value(dictionary, key):
     for i in dictionary:
         if dictionary[i] == key:
@@ -666,34 +710,42 @@ def get_all_time_stats(chat_id):
         all_time_stats = {row[0]: row[1] for row in cursor.fetchall()}
     return all_time_stats
 
-def warn_user(message, user_id):
-    user_warns = load_data('warns.json')
-    if user_id not in user_warns:
-        user_warns[user_id] = {'warn_count': 1, 'last_warn_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-        bot.reply_to(message, f"{get_name(message)}, Ая-яй, вредим значит? Так нельзя. Пока что просто предупреждаю. Максимум 3 преда, потом - забаню.", parse_mode='HTML')
+def warn_user(message, user_id, duration_seconds=None):
+    chat_id = message.chat.id
+    admin_id = message.from_user.id if message.from_user else None
+    with db_connection() as cursor:
+        warn_count, max_warns, effective_dur, expires_at = add_warn(
+            cursor, chat_id, user_id, admin_id=admin_id, duration_seconds=duration_seconds
+        )
+    target_name = get_name(message)
+    duration_str = format_duration(effective_dur)
+
+    if warn_count < max_warns:
+        if warn_count == 1:
+            text = f"{target_name}, ая-яй, вредим значит? Так нельзя. Пока что просто предупреждаю.\n"
+        else:
+            text = f"{target_name}, ты опять вредишь? Напоминаю: преды не бесконечные!\n"
+        text += f"⚠️ Предупреждение <b>[{warn_count}/{max_warns}]</b>"
+        if effective_dur and effective_dur > 0:
+            text += f" (срок действия: {duration_str})"
+        text += f". При достижении {max_warns} — бан!"
+        bot.reply_to(message, text, parse_mode='HTML')
     else:
-        user_warns[user_id]['warn_count'] += 1
-        user_warns[user_id]['last_warn_time'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        bot.reply_to(message, f"{get_name(message)}, Ты опять вредишь? Напоминаю что максимум 3 преда, потом - забаню.", parse_mode='HTML')
+        bot.reply_to(
+            message,
+            f"Я предупреждал... Лимит предупреждений <b>[{warn_count}/{max_warns}]</b> исчерпан. Прощай, {target_name}!",
+            parse_mode='HTML'
+        )
+        try:
+            bot.ban_chat_member(chat_id, user_id)
+        except Exception as e:
+            catch_error(message, e)
 
-    if user_warns[user_id]['warn_count'] >= 3:
-        bot.reply_to(message, "Я предупреждал...", parse_mode='HTML')
-        target = get_target(message)
-        if target:
-            bot.ban_chat_member(message.chat.id, target)
-
-    save_data(user_warns, 'warns.json')
-
-def remove_warn(user_id):
-    user_warns = load_data('warns.json')
-    if user_id in user_warns:
-        user_warns[user_id]['warn_count'] -= 1
-        if user_warns[user_id]['warn_count'] <= 0:
-            del user_warns[user_id]
-        save_data(user_warns, 'warns.json')
-        return True
-    else:
-        return False
+def remove_warn_for_user(message, user_id):
+    chat_id = message.chat.id
+    with db_connection() as cursor:
+        success, remaining, max_warns = remove_warn(cursor, chat_id, user_id)
+    return success, remaining, max_warns
 
 db = read_db()
 print('DEBUG: Инициализация бота...')
@@ -788,7 +840,7 @@ def handle_top_day(message):
     chat_id = str(message.chat.id)
     daily_stats = get_daily_stats(chat_id)
     sorted_stats = sorted(daily_stats.items(), key=lambda x: x[1], reverse=True)
-    text = "Топ пользователей за сегодня:\n"
+    text = "Топ крутышек за сегодня:\n"
     total_messages_chat = 0
     if not sorted_stats:
         text = "Статистика за сегодня пока пуста."
@@ -805,7 +857,7 @@ def handle_top_week(message):
     chat_id = str(message.chat.id)
     weekly_stats = get_weekly_stats(chat_id)
     sorted_stats = sorted(weekly_stats.items(), key=lambda x: x[1], reverse=True)
-    text = "Топ пользователей за неделю:\n"
+    text = "Топ крутышек за неделю:\n"
     total_messages_chat = 0
     if not sorted_stats:
         text = "Статистика за неделю пока пуста."
@@ -822,7 +874,7 @@ def handle_top_month(message):
     chat_id = str(message.chat.id)
     monthly_stats = get_monthly_stats(chat_id)
     sorted_stats = sorted(monthly_stats.items(), key=lambda x: x[1], reverse=True)
-    text = "Топ пользователей за месяц:\n"
+    text = "Топ крутышек за месяц:\n"
     total_messages_chat = 0
     if not sorted_stats:
         text = "Статистика за месяц пока пуста."
@@ -839,7 +891,7 @@ def handle_top_all_time(message):
     chat_id = str(message.chat.id)
     all_time_stats = get_all_time_stats(chat_id)
     sorted_stats = sorted(all_time_stats.items(), key=lambda x: x[1], reverse=True)
-    text = "Топ пользователей за всё время:\n"
+    text = "Топ крутышек за всё время:\n"
     total_messages_chat = 0
     if not sorted_stats:
         text = "Статистика за всё время пока пуста."
@@ -1071,36 +1123,153 @@ def echo_all(message):
         except:
             return 0
 
-    if message.text.upper() == 'ВАРН':
-        try:
-            if have_rights(message):
-                db = read_db()
-                owner_id = db['owner_id']
-                greet_owner_if_self(message, owner_id)
-                if message.reply_to_message:
-                    user_id = message.reply_to_message.from_user.id
-                    warn_user(message, user_id)
-                else:
-                    bot.reply_to(message, "Команда должна быть ответом на сообщение нарушителя.")
-        except:
-            return 0
+    if message.text:
+        upper_text = message.text.strip().upper()
 
-    if message.text.upper() == 'СНЯТЬ ВАРН':
+        if upper_text.startswith(('ЛИМИТ ВАРНОВ', 'ВАРН ЛИМИТ', 'ЛИМИТ ПРЕДОВ', '+ВАРНЛИМИТ')):
+            try:
+                parts = message.text.strip().split()
+                int_val = None
+                for p in parts[1:]:
+                    if p.isdigit():
+                        int_val = int(p)
+                        break
+
+                if int_val is not None:
+                    if not can_manage_warn_settings(message):
+                        bot.reply_to(message, "Эту настройку могут менять только администраторы группы и владелец бота.")
+                    elif int_val < 1 or int_val > 100:
+                        bot.reply_to(message, "Количество варнов должно быть числом от 1 до 100 (например: <code>лимит варнов 3</code>).", parse_mode='HTML')
+                    else:
+                        with db_connection() as cursor:
+                            set_chat_max_warns(cursor, message.chat.id, int_val)
+                        bot.reply_to(message, f"✅ Лимит предупреждений до бана для этого чата установлен на <b>{int_val}</b>.", parse_mode='HTML')
+                else:
+                    with db_connection() as cursor:
+                        settings = get_chat_warn_settings(cursor, message.chat.id)
+                    dur_str = format_duration(settings['warn_duration'])
+                    text = (
+                        f"⚙️ <b>Настройки варнов в этом чате:</b>\n"
+                        f"• Лимит варнов до бана: <b>{settings['max_warns']}</b>\n"
+                        f"• Срок действия варна: <b>{dur_str}</b>\n\n"
+                        f"<i>Изменить лимит:</i> <code>лимит варнов [число]</code>\n"
+                        f"<i>Изменить время:</i> <code>время варна [время]</code> (например: <code>время варна 24h</code>, <code>время варна навсегда</code>)"
+                    )
+                    bot.reply_to(message, text, parse_mode='HTML')
+            except Exception as e:
+                catch_error(message, e)
+
+        if upper_text.startswith(('ВРЕМЯ ВАРНА', 'ВРЕМЯ ВАРНОВ', 'СРОК ВАРНА', 'ВАРН ВРЕМЯ')):
+            try:
+                for prefix in ['ВРЕМЯ ВАРНОВ', 'ВРЕМЯ ВАРНА', 'СРОК ВАРНА', 'ВАРН ВРЕМЯ']:
+                    if upper_text.startswith(prefix):
+                        arg = message.text.strip()[len(prefix):].strip()
+                        break
+                else:
+                    arg = ""
+
+                if arg:
+                    if not can_manage_warn_settings(message):
+                        bot.reply_to(message, "Эту настройку могут менять только администраторы группы и владелец бота.")
+                    else:
+                        dur = parse_duration_string(arg)
+                        if dur is None:
+                            bot.reply_to(message, "Неверный формат времени. Примеры: <code>время варна 24h</code>, <code>время варна 7d</code>, <code>время варна 30m</code>, <code>время варна навсегда</code>.", parse_mode='HTML')
+                        else:
+                            with db_connection() as cursor:
+                                set_chat_warn_duration(cursor, message.chat.id, dur)
+                            dur_str = format_duration(dur)
+                            bot.reply_to(message, f"✅ Время действия варна в этом чате установлено: <b>{dur_str}</b>.", parse_mode='HTML')
+                else:
+                    with db_connection() as cursor:
+                        settings = get_chat_warn_settings(cursor, message.chat.id)
+                    dur_str = format_duration(settings['warn_duration'])
+                    bot.reply_to(message, f"⏳ Время действия предупреждения в этом чате: <b>{dur_str}</b>.", parse_mode='HTML')
+            except Exception as e:
+                catch_error(message, e)
+
+        if upper_text in ['ВАРНЫ', 'СПИСОК ВАРНОВ', 'МОИ ВАРНЫ'] or upper_text.startswith('ВАРНЫ '):
+            try:
+                if message.reply_to_message:
+                    target_user_id = message.reply_to_message.from_user.id
+                else:
+                    target_from_cmd = get_target(message)
+                    target_user_id = target_from_cmd if target_from_cmd else message.from_user.id
+
+                user_link = get_user_link_sync(target_user_id, message.chat.id)
+                with db_connection() as cursor:
+                    warns = get_user_warns(cursor, message.chat.id, target_user_id)
+                    settings = get_chat_warn_settings(cursor, message.chat.id)
+
+                if not warns:
+                    bot.reply_to(message, f"У {user_link} нет активных предупреждений в этом чате 😇", parse_mode='HTML')
+                else:
+                    text = f"⚠️ <b>Предупреждения пользователя {user_link}:</b>\n"
+                    text += f"Активно: <b>[{len(warns)}/{settings['max_warns']}]</b>\n\n"
+                    for idx, w in enumerate(warns, 1):
+                        created = w['created_at']
+                        expires = w['expires_at'] or "бессрочно"
+                        text += f"{idx}. Выдан: {created} (истекает: {expires})\n"
+                    bot.reply_to(message, text, parse_mode='HTML')
+            except Exception as e:
+                catch_error(message, e)
+
+    if message.text.upper() == 'ВАРН' or (message.text.upper().startswith('ВАРН ') and not message.text.upper().startswith(('ВАРН ЛИМИТ', 'ВАРН ВРЕМЯ'))):
         try:
             if have_rights(message):
                 db = read_db()
                 owner_id = db['owner_id']
                 greet_owner_if_self(message, owner_id)
                 if message.reply_to_message:
-                    user_id = message.reply_to_message.from_user.id
-                    if remove_warn(user_id):
-                        bot.reply_to(message, f"Ладно, {get_name(message)}, прощаю последний твой косяк.", parse_mode='HTML')
-                    else:
-                        bot.reply_to(message, "Этот человек очень даже хороший в моём видении.")
+                    target_id = message.reply_to_message.from_user.id
                 else:
-                    bot.reply_to(message, "Команда должна быть ответом на сообщение пользователя.")
-        except:
-            return 0
+                    target_id = get_target(message)
+
+                if not target_id:
+                    bot.reply_to(message, "Команда должна быть ответом на сообщение нарушителя или содержать @username.")
+                else:
+                    admins = get_admins(message)
+                    if target_id == owner_id or (admins and target_id in admins):
+                        bot.reply_to(message, "Нельзя выдать предупреждение администратору.")
+                    else:
+                        custom_dur = None
+                        time_info = get_time(message)
+                        if time_info:
+                            custom_dur = time_info[1]
+                        else:
+                            parts = message.text.strip().split()
+                            for p in parts[1:]:
+                                if not p.startswith('@'):
+                                    parsed = parse_duration_string(p)
+                                    if parsed is not None:
+                                        custom_dur = parsed
+                                        break
+                        warn_user(message, target_id, duration_seconds=custom_dur)
+        except Exception as e:
+            catch_error(message, e)
+
+    if message.text.upper() == 'СНЯТЬ ВАРН' or message.text.upper().startswith('СНЯТЬ ВАРН '):
+        try:
+            if have_rights(message):
+                db = read_db()
+                owner_id = db['owner_id']
+                greet_owner_if_self(message, owner_id)
+                if message.reply_to_message:
+                    target_id = message.reply_to_message.from_user.id
+                else:
+                    target_id = get_target(message)
+
+                if not target_id:
+                    bot.reply_to(message, "Команда должна быть ответом на сообщение пользователя или содержать @username.")
+                else:
+                    success, remaining, max_w = remove_warn_for_user(message, target_id)
+                    target_name = get_name(message)
+                    if success:
+                        bot.reply_to(message, f"Ладно, {target_name}, последний косяк снят. Активных варнов: <b>[{remaining}/{max_w}]</b>.", parse_mode='HTML')
+                    else:
+                        bot.reply_to(message, f"У {target_name} нет активных предупреждений в этом чате.", parse_mode='HTML')
+        except Exception as e:
+            catch_error(message, e)
 
     if message.text.upper().startswith('МУТ'):
         try:
@@ -1388,15 +1557,18 @@ def echo_all(message):
 +ник {ник} / -ник - Установить/сбросить кастомный ник (отображается в топе и РП)
 +описание {описание} / -описание - Установить/сбросить описание (отображается в кто я/кто ты)
 Какая нагрузка - выполняет команду uptime и отправляет её вывод
-Топ день / Топ дня - Топ пользователей за день в этом чате.
-Топ неделя / Топ недели - Топ пользователей за неделю в этом чате.
-Топ месяц / Топ месяца - Топ пользователей за месяц в этом чате.
-Топ все / Топ вся - Топ пользователей за все время в этом чате.
+Топ день / Топ дня - Топ крутышек за день в этом чате.
+Топ неделя / Топ недели - Топ крутышек за неделю в этом чате.
+Топ месяц / Топ месяца - Топ крутышек за месяц в этом чате.
+Топ все / Топ вся - Топ крутышек за все время в этом чате.
 Кто ты @username / reply - Показывает инфу о пользователе.
 Бан/Разбан - Блокировка/разблокировка пользователя
 Кик - Изгнание пользователя
 Мут/Размут [2m/2h] - Лишение/выдача права слова пользователю (m - минуты, h - часы)
-Варн/Снять варн - Выдача/Снятие предупреждения пользователю
+Варн [время] / Снять варн - Выдача/Снятие предупреждения пользователю (напр. варн 2h)
+Варны - Просмотр активных предупреждений пользователя
+Лимит варнов [число] - Настройка лимита варнов до бана для этой группы (только админы)
+Время варна [время] - Настройка времени действия варна для этой группы (только админы)
 Закреп||Пин - Прикрепить сообщение
 Анпин - открепить сообщение
 Рандом a b - Случайный выбор числа в диапазоне a..b
@@ -1412,6 +1584,7 @@ def echo_all(message):
 Брак (reply) - Предложить брак пользователю.
 Развод - Развестись с пользователем.
 Браки / Список браков - Список всех браков в чате.
+Шипперим - Случайный шипперинг двух участников чата.
 </blockquote>\n"""
 
             help_text_rp = "<blockquote expandable><b>РП-Команды</b>\n"
@@ -1501,13 +1674,13 @@ def echo_all(message):
             proposer_id = message.from_user.id
             chat_id = message.chat.id
             if proposer_id == target_id:
-                bot.reply_to(message, "Нельзя вступить в брак с самим собой.")
+                bot.reply_to(message, "Чел буквально поженил себя и свою руку. Ну ладно, я не осуждаю, но это странно. Брака не будет.")
                 return
             if is_married(chat_id, proposer_id):
-                bot.reply_to(message, "Вы уже состоите в браке в этом чате.")
+                bot.reply_to(message, "Услышал тебя родной. Изменяем значит. Не не не бро. Сначала разведись.")
                 return
             if is_married(chat_id, target_id):
-                bot.reply_to(message, "Этот пользователь уже состоит в браке в этом чате.")
+                bot.reply_to(message, "Не успел. Этот человек уже в браке. Не пытайся быть третьим лишним.")
                 return
             request_id = str(uuid.uuid4())
             save_marriage_request(request_id, chat_id, proposer_id, target_id, message.from_user.first_name)
@@ -1532,7 +1705,7 @@ def echo_all(message):
                 spouse_link = get_user_link_sync(spouse_id, chat_id)
                 bot.reply_to(message, f"Развод оформлен. Сожалеем для {spouse_link}.", parse_mode='HTML')
             else:
-                bot.reply_to(message, "Вы не состоите в браке в этом чате.")
+                bot.reply_to(message, "Так ты не в браке даже...")
         except Exception as e:
             catch_error(message, e)
 
@@ -1559,6 +1732,88 @@ def echo_all(message):
                         duration = f"{days} дней"
                     text += f"{i}. {link1} 💍 {link2} (Заключен: {date_str}, Длительность: {duration})\n"
                 bot.send_message(message.chat.id, text, parse_mode='HTML')
+        except Exception as e:
+            catch_error(message, e)
+
+    if message.text and is_shipping_command(message.text):
+        try:
+            chat_id = message.chat.id
+            current_uid = message.from_user.id if message.from_user and not message.from_user.is_bot else None
+            reply_uid = (
+                message.reply_to_message.from_user.id
+                if message.reply_to_message and message.reply_to_message.from_user and not message.reply_to_message.from_user.is_bot
+                else None
+            )
+
+            with db_connection() as cursor:
+                candidates = get_chat_shipping_candidates(cursor, chat_id, current_uid, reply_uid)
+
+            # Добавляем администраторов чата
+            try:
+                admins = bot.get_chat_administrators(chat_id)
+                for admin in admins:
+                    if admin.user and not admin.user.is_bot:
+                        candidates.add(admin.user.id)
+            except Exception:
+                pass
+
+            # Исключаем бота и служебные аккаунты
+            try:
+                bot_id = bot.get_me().id
+                candidates.discard(bot_id)
+            except Exception:
+                pass
+            candidates.discard(777000)
+            candidates.discard(1087968824)
+
+            if len(candidates) < 2:
+                bot.reply_to(message, "Недостаточно участников для шипперинга! Мне нужно хотя бы два человечка в этом чате 💔")
+                return
+
+            def check_member(uid):
+                try:
+                    member = bot.get_chat_member(chat_id, uid)
+                    if member.status not in ['left', 'kicked'] and not member.user.is_bot:
+                        return member
+                except Exception:
+                    return None
+                return None
+
+            valid_members = pick_random_pair(candidates, check_member)
+
+            if len(valid_members) < 2:
+                bot.reply_to(message, "Не удалось найти двух активных участников для шипперинга 💔")
+                return
+
+            (uid1, member1), (uid2, member2) = valid_members[0], valid_members[1]
+            link1 = get_user_link_sync(uid1, chat_id)
+            link2 = get_user_link_sync(uid2, chat_id)
+            name1 = get_nickname(uid1) or member1.user.first_name or f"Участник {uid1}"
+            name2 = get_nickname(uid2) or member2.user.first_name or f"Участник {uid2}"
+            ship_name = generate_ship_name(name1, name2)
+
+            is_already_married = (get_spouse(chat_id, uid1) == uid2)
+            if is_already_married:
+                percent = 100
+            else:
+                percent = random.randint(0, 100)
+
+            extra_notes = []
+            if is_already_married:
+                extra_notes.append("💍 <i>Кстати, эти двое уже состоят в браке! Совет да любовь!</i>")
+            else:
+                spouse1 = get_spouse(chat_id, uid1)
+                spouse2 = get_spouse(chat_id, uid2)
+                if spouse1:
+                    s1_link = get_user_link_sync(spouse1, chat_id)
+                    extra_notes.append(f"👀 <i>Опаньки... А {link1} вообще-то уже в браке с {s1_link}!</i>")
+                if spouse2:
+                    s2_link = get_user_link_sync(spouse2, chat_id)
+                    extra_notes.append(f"👀 <i>Опаньки... А {link2} вообще-то уже в браке с {s2_link}!</i>")
+
+            text = format_shipping_message(link1, link2, ship_name, percent, extra_notes=extra_notes)
+            bot.send_message(chat_id, text, parse_mode='HTML')
+            return
         except Exception as e:
             catch_error(message, e)
 
@@ -1789,7 +2044,7 @@ def handle_marriage_callback(call):
         chat_id, proposer_id, proposer_first_name, target_id = request_data
         clicker_id = call.from_user.id
         if clicker_id != target_id:
-            bot.answer_callback_query(call.id, "Только адресат может ответить на предложение.")
+            bot.answer_callback_query(call.id, "Не лезь не в своё дело, это не твоё предложение.")
             return
         proposer_link = get_user_link_sync(proposer_id, int(chat_id))
         target_link = get_user_link_sync(target_id, int(chat_id))
