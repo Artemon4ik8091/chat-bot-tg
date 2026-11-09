@@ -25,9 +25,9 @@ from xxhash import xxh32
 
 from criminal_code_utils import (
     CRIMINAL_CODE_EDITION,
+    format_criminal_code_messages,
     format_criminal_code_punishments,
     get_random_criminal_code_article,
-    split_criminal_code_message,
 )
 from rp_command_utils import (
     format_rp_response,
@@ -868,19 +868,20 @@ def echo_all(message):
             article = get_random_criminal_code_article()
             display_name = escape_html(get_nickname(message.from_user.id) or message.from_user.first_name)
             article_title = escape_html(article['title'])
-            response_lines = [
+            response_header = (
                 f"⚖️ {display_name}, по версии шуточного суда Барбариски, тебе выпала статья "
                 f"<b>{article['number']} УК РФ — {article_title}</b>."
-            ]
+            )
+            response_details = []
             for punishment in format_criminal_code_punishments(article):
                 part_label, text = punishment.split(": ", maxsplit=1)
-                response_lines.append(f"<b>{escape_html(part_label)}:</b> {escape_html(text)}")
-            response_lines.append(
+                response_details.append(f"<b>{escape_html(part_label)}:</b> {escape_html(text)}")
+            response_details.append(
                 f"Санкции приведены по редакции УК РФ от {CRIMINAL_CODE_EDITION}; "
                 "это не прогноз реального приговора. "
                 "Команда шуточная и не является обвинением."
             )
-            response_messages = split_criminal_code_message(response_lines)
+            response_messages = format_criminal_code_messages(response_header, response_details)
             bot.reply_to(message, response_messages[0], parse_mode='HTML')
             for response in response_messages[1:]:
                 bot.send_message(message.chat.id, response, parse_mode='HTML')
@@ -1830,8 +1831,6 @@ def handle_inline_query(query):
         sender_first_name = query.from_user.first_name
 
         request_text = rp_data[command]['request'].format(sender=sender_display)
-        if user_phrase:
-            request_text += f'\nФраза: {escape_html(user_phrase)}'
 
         request_id = str(uuid.uuid4())
         save_rp_request(request_id, 0, sender_id, 0, command, user_phrase, sender_first_name)
@@ -1851,7 +1850,7 @@ def handle_inline_query(query):
                     parse_mode='HTML',
                     disable_web_page_preview=True
                 ),
-                description=user_phrase[:50] if user_phrase else f"RP: {command}",
+                description=f"RP: {command}",
                 reply_markup=markup
             )
         ]

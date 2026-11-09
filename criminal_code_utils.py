@@ -89,3 +89,18 @@ def split_criminal_code_message(lines, max_length=4000):
     if current_message:
         messages.append(current_message)
     return messages
+
+
+def format_criminal_code_messages(header, details, max_length=4000):
+    opening_tag = "<blockquote expandable>\n"
+    closing_tag = "\n</blockquote>"
+    detail_limit = max_length - len(header) - 1 - len(opening_tag) - len(closing_tag)
+    if detail_limit <= 0:
+        raise ValueError("The criminal-code response header exceeds the Telegram message limit")
+
+    detail_messages = split_criminal_code_message(details, max_length=detail_limit)
+    messages = []
+    for index, detail in enumerate(detail_messages):
+        message_header = f"{header}\n" if index == 0 else ""
+        messages.append(f"{message_header}{opening_tag}{detail}{closing_tag}")
+    return messages

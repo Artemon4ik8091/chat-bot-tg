@@ -7,10 +7,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from criminal_code_utils import (
     CRIMINAL_CODE_ARTICLES,
     CRIMINAL_CODE_EDITION,
+    format_criminal_code_messages,
     format_criminal_code_punishments,
     get_random_criminal_code_article,
     load_criminal_code_articles,
-    split_criminal_code_message,
 )
 from rp_command_utils import load_rp_commands
 
@@ -51,11 +51,13 @@ class CriminalCodeUtilsTests(unittest.TestCase):
     def test_long_part_sanctions_are_split_for_telegram(self):
         article_204 = next(article for article in CRIMINAL_CODE_ARTICLES if article["number"] == "204")
         parts = format_criminal_code_punishments(article_204)
-        messages = split_criminal_code_message(parts, max_length=4000)
+        messages = format_criminal_code_messages("⚖️ Статья 204 УК РФ", parts)
 
         self.assertGreater(len(messages), 1)
         self.assertTrue(all(len(message) <= 4000 for message in messages))
-        self.assertEqual("\n".join(messages).splitlines(), parts)
+        self.assertTrue(all("<blockquote expandable>" in message for message in messages))
+        self.assertTrue(all(message.endswith("</blockquote>") for message in messages))
+        self.assertIn("Часть 1:", messages[0])
 
     def test_my_article_is_not_an_rp_command(self):
         project_dir = os.path.dirname(os.path.dirname(__file__))
