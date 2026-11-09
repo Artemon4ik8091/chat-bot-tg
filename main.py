@@ -23,7 +23,14 @@ from telebot.types import (
 from requests.exceptions import ReadTimeout, ConnectionError
 from xxhash import xxh32
 
+from criminal_code_utils import (
+    CRIMINAL_CODE_EDITION,
+    format_criminal_code_punishments,
+    get_random_criminal_code_article,
+    split_criminal_code_message,
+)
 from rp_command_utils import (
+    format_rp_response,
     load_chat_rp_commands,
     load_rp_commands,
     parse_rp_command_creation,
@@ -856,6 +863,31 @@ def echo_all(message):
                 cursor.execute('INSERT INTO user_data (chat_id, user_id, date, message_count, last_activity) VALUES (?, ?, ?, ?, ?)',
                                (chat_id, user_id, date, 1, current_time if message.text.upper() != 'КТО Я' else ''))
 
+    if message.text and message.text.strip().casefold() == 'моя статья':
+        try:
+            article = get_random_criminal_code_article()
+            display_name = escape_html(get_nickname(message.from_user.id) or message.from_user.first_name)
+            article_title = escape_html(article['title'])
+            response_lines = [
+                f"⚖️ {display_name}, по версии шуточного суда Барбариски, тебе выпала статья "
+                f"<b>{article['number']} УК РФ — {article_title}</b>."
+            ]
+            for punishment in format_criminal_code_punishments(article):
+                part_label, text = punishment.split(": ", maxsplit=1)
+                response_lines.append(f"<b>{escape_html(part_label)}:</b> {escape_html(text)}")
+            response_lines.append(
+                f"Санкции приведены по редакции УК РФ от {CRIMINAL_CODE_EDITION}; "
+                "это не прогноз реального приговора. "
+                "Команда шуточная и не является обвинением."
+            )
+            response_messages = split_criminal_code_message(response_lines)
+            bot.reply_to(message, response_messages[0], parse_mode='HTML')
+            for response in response_messages[1:]:
+                bot.send_message(message.chat.id, response, parse_mode='HTML')
+        except Exception as e:
+            catch_error(message, e)
+        return
+
     db = read_db()
     owner_id = db['owner_id']
 
@@ -1481,6 +1513,7 @@ def echo_all(message):
 Закреп||Пин - Прикрепить сообщение
 Анпин - открепить сообщение
 Рандом a b - Случайный выбор числа в диапазоне a..b
+Моя статья - Случайная статья УК РФ для автора команды (шутка)
 .Хелп - Этот список
 .Rphelp - Справка по созданию своих RP-команд
 .Rpcreate - Создать свою RP-команду
@@ -1798,7 +1831,7 @@ def handle_inline_query(query):
 
         request_text = rp_data[command]['request'].format(sender=sender_display)
         if user_phrase:
-            request_text += f'\nФраза: {user_phrase}'
+            request_text += f'\nФраза: {escape_html(user_phrase)}'
 
         request_id = str(uuid.uuid4())
         save_rp_request(request_id, 0, sender_id, 0, command, user_phrase, sender_first_name)
@@ -1885,8 +1918,11 @@ def handle_callback_query(call):
             template = template.replace('{random_part}', '')
             response_text = template.replace('{sender}', sender_display).replace('{target}', target_link)
 
-            if phrase:
-                response_text += f"\nСо словами: {phrase}"
+            response_text = format_rp_response(
+                response_text,
+                escape_html(phrase),
+                inline=str(chat_id) == "0",
+            )
 
         # Редактирование сообщения
         if call.message:

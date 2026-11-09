@@ -6,6 +6,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from rp_command_utils import (
+    format_rp_response,
     load_chat_rp_commands,
     load_rp_commands,
     parse_rp_command_creation,
@@ -40,6 +41,19 @@ class RpCommandUtilsTests(unittest.TestCase):
 
     def test_parse_rp_command_creation_requires_separator(self):
         self.assertIsNone(parse_rp_command_creation(".rpcreate почесать"))
+
+    def test_format_rp_response_keeps_inline_phrase_in_sentence(self):
+        response = "{sender} нежно поцеловал {target}"
+
+        self.assertEqual(
+            format_rp_response(response, "в щёчку", inline=True),
+            "{sender} нежно поцеловал {target} в щёчку",
+        )
+        self.assertEqual(
+            format_rp_response(response, "в щёчку"),
+            "{sender} нежно поцеловал {target}\nСо словами: в щёчку",
+        )
+        self.assertEqual(format_rp_response(response, ""), response)
 
     def test_save_and_load_rp_commands(self):
         with tempfile.NamedTemporaryFile("w+", delete=False, suffix=".json") as handle:

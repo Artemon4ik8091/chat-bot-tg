@@ -94,3 +94,11 @@ def parse_rp_command_delete(text):
     if not command_name:
         return None
     return command_name
+
+
+def format_rp_response(response_text, phrase, inline=False):
+    if not phrase:
+        return response_text
+    if inline:
+        return f"{response_text.rstrip()} {phrase.strip()}"
+    return f"{response_text}\nСо словами: {phrase}"
