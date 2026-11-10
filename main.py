@@ -860,8 +860,16 @@ def echo_all(message):
                            (chat_id, user_id, date))
             result = cursor.fetchone()
             if result:
-                cursor.execute('UPDATE user_data SET message_count = ?, last_activity = ? WHERE chat_id = ? AND user_id = ? AND date = ?',
-                               (result[0] + 1, current_time if message.text.upper() != 'КТО Я' else '', chat_id, user_id, date))
+                if message.text.upper() == 'КТО Я':
+                    cursor.execute(
+                        'UPDATE user_data SET message_count = ? WHERE chat_id = ? AND user_id = ? AND date = ?',
+                        (result[0] + 1, chat_id, user_id, date)
+                    )
+                else:
+                    cursor.execute(
+                        'UPDATE user_data SET message_count = ?, last_activity = ? WHERE chat_id = ? AND user_id = ? AND date = ?',
+                        (result[0] + 1, current_time, chat_id, user_id, date)
+                    )
             else:
                 cursor.execute('INSERT INTO user_data (chat_id, user_id, date, message_count, last_activity) VALUES (?, ?, ?, ?, ?)',
                                (chat_id, user_id, date, 1, current_time if message.text.upper() != 'КТО Я' else ''))
@@ -1013,7 +1021,9 @@ def echo_all(message):
         monthly_count = get_user_monthly_stats(chat_id, user_id)
         all_time_count = get_user_all_time_stats(chat_id, user_id)
         with db_connection() as cursor:
-            cursor.execute('SELECT last_activity FROM user_data WHERE chat_id = ? AND user_id = ? LIMIT 1',
+            cursor.execute('''SELECT last_activity FROM user_data
+                              WHERE chat_id = ? AND user_id = ? AND last_activity != ''
+                              ORDER BY last_activity DESC LIMIT 1''',
                         (chat_id, user_id))
             result = cursor.fetchone()
             last_active_time = format_time_ago(result[0]) if result and result[0] else "Нет данных"
@@ -1089,7 +1099,9 @@ def echo_all(message):
                 monthly_count = get_user_monthly_stats(chat_id, target_user_id)
                 all_time_count = get_user_all_time_stats(chat_id, target_user_id)
                 with db_connection() as cursor:
-                    cursor.execute('SELECT last_activity FROM user_data WHERE chat_id = ? AND user_id = ? LIMIT 1',
+                    cursor.execute('''SELECT last_activity FROM user_data
+                                      WHERE chat_id = ? AND user_id = ? AND last_activity != ''
+                                      ORDER BY last_activity DESC LIMIT 1''',
                                 (chat_id, target_user_id))
                     result = cursor.fetchone()
                     last_active_time = format_time_ago(result[0]) if result and result[0] else "Нет данных"
