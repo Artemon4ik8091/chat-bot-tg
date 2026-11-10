@@ -899,9 +899,66 @@ def echo_all(message):
         username = escape_html(message.from_user.first_name)
         bot.reply_to(message, f'Hello. I see you, {username}')
 
-    if message.text.upper() == "КАКАЯ НАГРУЗКА":
+    if message.text.upper() == "БАРБАРИС КАКАЯ НАГРУЗКА":
         uptime_output = get_uptime()
         bot.reply_to(message, "Выполняю команду uptime:\n" + uptime_output)
+
+    who_match = re.match(
+        r'^барбарис\s+кто(?:\s+(.*))?$',
+        message.text.strip(),
+        flags=re.IGNORECASE | re.DOTALL
+    ) if message.text else None
+    if who_match:
+        question = (who_match.group(1) or '').strip()
+        if not question:
+            bot.reply_to(message, "Укажи вопрос, например: Барбарис кто любит пельмени?")
+            return
+
+        try:
+            chat_id = str(message.chat.id)
+            with db_connection() as cursor:
+                candidates = get_chat_shipping_candidates(
+                    cursor,
+                    chat_id,
+                    current_user_id=message.from_user.id
+                )
+
+            try:
+                admins = bot.get_chat_administrators(message.chat.id)
+                candidates.update(
+                    admin.user.id
+                    for admin in admins
+                    if admin.user and not admin.user.is_bot
+                )
+            except Exception as e:
+                logging.warning("Could not list chat admins for 'Барбарис кто': %s", e)
+
+            candidates.difference_update({777000, 1087968824})
+            candidate_ids = list(candidates)
+            random.shuffle(candidate_ids)
+            for candidate_id in candidate_ids:
+                try:
+                    member = bot.get_chat_member(message.chat.id, candidate_id)
+                except Exception as e:
+                    logging.debug("Skipping unavailable chat member %s: %s", candidate_id, e)
+                    continue
+                if member.status in ['left', 'kicked'] or member.user.is_bot:
+                    continue
+
+                random_user = get_user_link_sync(candidate_id, chat_id)
+                response = f"Уверен, что {random_user} {escape_html(question)}"
+                bot.reply_to(
+                    message,
+                    response,
+                    parse_mode='HTML',
+                    disable_web_page_preview=True
+                )
+                return
+
+            bot.reply_to(message, "Не нашёл участников чата для ответа.")
+        except Exception as e:
+            catch_error(message, e)
+        return
 
     if message.text.upper().startswith('БАРБАРИС СКАЖИ '):
         text_to_say = message.text[14:]
