@@ -666,11 +666,12 @@ bot = telebot.TeleBot(db['token'])
 telebot.apihelper.proxy = {'https': 'http://127.0.0.1:7897'}
 print('DEBUG: Бот успешно инициализирован. Запуск polling...')
 
-def get_user_link_sync(user_id, chat_id):
+def get_user_link_sync(user_id, chat_id, include_profile_link=True):
     try:
         member = bot.get_chat_member(chat_id, user_id)
         display_name = get_nickname(user_id) or member.user.first_name
-        return format_user_link(display_name, member.user.username, user_id)
+        username = member.user.username if include_profile_link else None
+        return format_user_link(display_name, username, user_id)
     except Exception as e:
         print(f"Error getting user link for ID {user_id} in chat {chat_id}: {e}")
         return f"Пользователь {user_id}"
@@ -734,8 +735,8 @@ def get_all_chats():
 def get_profile_addition(chat_id, user_id):
     spouse_id = get_spouse(chat_id, user_id)
     if spouse_id:
-        spouse_link = get_user_link_sync(spouse_id, chat_id)
-        return f"\n💍 В браке с {spouse_link}"
+        spouse_name = get_user_link_sync(spouse_id, chat_id, include_profile_link=False)
+        return f"\n💍 В браке с {spouse_name}"
     return ""
 
 @bot.message_handler(content_types=['new_chat_members'])
@@ -967,7 +968,12 @@ def echo_all(message):
             f"Последний твой актив:\n{last_active_time}\n"
             f"Краткая стата (д|н|м|вся):\n{daily_count}|{weekly_count}|{monthly_count}|{all_time_count}"
         )
-        bot.reply_to(message, reply_text, parse_mode='HTML', disable_web_page_preview=True)
+        bot.reply_to(
+            message,
+            reply_text,
+            parse_mode='HTML',
+            disable_web_page_preview=not bool(member.user.username)
+        )
 
     if message.text.upper().startswith('КТО ТЫ'):
         try:
@@ -1038,7 +1044,12 @@ def echo_all(message):
                     f"Последний актив:\n{last_active_time}\n"
                     f"Краткая стата (д|н|м|вся):\n{daily_count}|{weekly_count}|{monthly_count}|{all_time_count}"
                 )
-                bot.reply_to(message, reply_text, parse_mode='HTML')
+                bot.reply_to(
+                    message,
+                    reply_text,
+                    parse_mode='HTML',
+                    disable_web_page_preview=not bool(member.user.username)
+                )
             else:
                 bot.reply_to(message, "Не удалось определить целевого пользователя.")
         except Exception as e:
