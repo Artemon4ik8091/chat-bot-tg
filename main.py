@@ -666,12 +666,15 @@ bot = telebot.TeleBot(db['token'])
 telebot.apihelper.proxy = {'https': 'http://127.0.0.1:7897'}
 print('DEBUG: Бот успешно инициализирован. Запуск polling...')
 
-def get_user_link_sync(user_id, chat_id, include_profile_link=True):
+def get_user_link_sync(user_id, chat_id, include_user_id=True):
     try:
         member = bot.get_chat_member(chat_id, user_id)
         display_name = get_nickname(user_id) or member.user.first_name
-        username = member.user.username if include_profile_link else None
-        return format_user_link(display_name, username, user_id)
+        return format_user_link(
+            display_name,
+            member.user.username,
+            user_id if include_user_id else None
+        )
     except Exception as e:
         print(f"Error getting user link for ID {user_id} in chat {chat_id}: {e}")
         return f"Пользователь {user_id}"
@@ -735,7 +738,7 @@ def get_all_chats():
 def get_profile_addition(chat_id, user_id):
     spouse_id = get_spouse(chat_id, user_id)
     if spouse_id:
-        spouse_name = get_user_link_sync(spouse_id, chat_id, include_profile_link=False)
+        spouse_name = get_user_link_sync(spouse_id, chat_id, include_user_id=False)
         return f"\n💍 В браке с {spouse_name}"
     return ""
 
