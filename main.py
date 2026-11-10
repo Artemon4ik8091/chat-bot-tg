@@ -432,8 +432,7 @@ def get_name(message):
                 if hashed_username in users:
                     user_id = users[hashed_username]
                     return get_user_link_sync(user_id, message.chat.id)
-                username = escape_html(username)
-                return f"@{username}"
+                return format_user_link(username, username)
             else:
                 return "пользователь"
         if len(text) > 2 and text[2].startswith('@'):
@@ -444,14 +443,12 @@ def get_name(message):
                 if hashed_username in users:
                     user_id = users[hashed_username]
                     return get_user_link_sync(user_id, message.chat.id)
-                username = escape_html(username)
-                return f"@{username}"
+                return format_user_link(username, username)
             else:
                 return "пользователь"
         target_user = message.reply_to_message.from_user
         display_name = get_nickname(target_user.id) or target_user.first_name
-        display_name = escape_html(display_name)
-        return f'<a href="tg://user?id={target_user.id}">{display_name}</a>'
+        return format_user_link(display_name, target_user.username, target_user.id)
     except Exception as e:
         catch_error(message, e)
         return "пользователь"
@@ -673,17 +670,19 @@ def get_user_link_sync(user_id, chat_id):
     try:
         member = bot.get_chat_member(chat_id, user_id)
         display_name = get_nickname(user_id) or member.user.first_name
-        display_name = escape_html(display_name)
-        if member.user.username:
-            # Формируем ссылку вида https://t.me/username
-            username = member.user.username.lstrip('@')  # Убираем @ из ника
-            return f'<a href="https://t.me/{username}">{display_name}</a>'
-        else:
-            # Если ника нет, возвращаем просто имя без ссылки
-            return display_name
+        return format_user_link(display_name, member.user.username, user_id)
     except Exception as e:
         print(f"Error getting user link for ID {user_id} in chat {chat_id}: {e}")
         return f"Пользователь {user_id}"
+
+def format_user_link(display_name, username, user_id=None):
+    display_name = escape_html(display_name)
+    if username:
+        username = escape_html(username.lstrip('@'))
+        return f'<a href="https://t.me/{username}">{display_name}</a>'
+    if user_id is not None:
+        return f'{display_name} ({user_id})'
+    return display_name
 
 def format_time_ago(datetime_str):
     if not datetime_str:
@@ -904,13 +903,23 @@ def echo_all(message):
         text_to_say = message.text[14:]
         user = message.from_user.first_name
         user_id = message.from_user.id
-        bot.send_message(message.chat.id, f"[{user}](tg://user?id={user_id}) заставил меня сказать:{text_to_say}", parse_mode='Markdown')
+        user_link = (
+            f"[{user}](https://t.me/{message.from_user.username})"
+            if message.from_user.username
+            else f"{user} ({user_id})"
+        )
+        bot.send_message(message.chat.id, f"{user_link} заставил меня сказать:{text_to_say}", parse_mode='Markdown')
 
     if message.text.upper().startswith('БАРБАРИС, СКАЖИ '):
         text_to_say = message.text[15:]
         user = message.from_user.first_name
         user_id = message.from_user.id
-        bot.send_message(message.chat.id, f"[{user}](tg://user?id={user_id}) заставил меня сказать:{text_to_say}", parse_mode='Markdown')
+        user_link = (
+            f"[{user}](https://t.me/{message.from_user.username})"
+            if message.from_user.username
+            else f"{user} ({user_id})"
+        )
+        bot.send_message(message.chat.id, f"{user_link} заставил меня сказать:{text_to_say}", parse_mode='Markdown')
 
     if message.text.upper() == 'ПИНГ':
         bot.reply_to(message, f'ПОНГ')
@@ -937,8 +946,7 @@ def echo_all(message):
         if member is None:
             return
         display_name = get_nickname(user_id) or member.user.first_name
-        display_name = escape_html(display_name)
-        username = f'<a href="tg://user?id={user_id}">{display_name}</a>'
+        username = format_user_link(display_name, member.user.username, user_id)
         daily_count = get_user_daily_stats(chat_id, user_id)
         weekly_count = get_user_weekly_stats(chat_id, user_id)
         monthly_count = get_user_monthly_stats(chat_id, user_id)
@@ -959,7 +967,7 @@ def echo_all(message):
             f"Последний твой актив:\n{last_active_time}\n"
             f"Краткая стата (д|н|м|вся):\n{daily_count}|{weekly_count}|{monthly_count}|{all_time_count}"
         )
-        bot.reply_to(message, reply_text, parse_mode='HTML')
+        bot.reply_to(message, reply_text, parse_mode='HTML', disable_web_page_preview=True)
 
     if message.text.upper().startswith('КТО ТЫ'):
         try:
@@ -974,8 +982,7 @@ def echo_all(message):
                 if member is None:
                     return
                 display_name = get_nickname(target_user_id) or member.user.first_name
-                display_name = escape_html(display_name)
-                target_user_name = f'<a href="tg://user?id={target_user_id}">{display_name}</a>'
+                target_user_name = format_user_link(display_name, member.user.username, target_user_id)
             else:
                 spl = message.text.split()
                 if len(spl) > 2 and spl[2][0] == '@':
@@ -988,8 +995,7 @@ def echo_all(message):
                         if member is None:
                             return
                         display_name = get_nickname(target_user_id) or member.user.first_name
-                        display_name = escape_html(display_name)
-                        target_user_name = f'<a href="tg://user?id={target_user_id}">{display_name}</a>'
+                        target_user_name = format_user_link(display_name, member.user.username, target_user_id)
                     else:
                         bot.reply_to(message, "Пользователь с таким юзернеймом не найден в моей базе.")
                         return
@@ -1003,8 +1009,7 @@ def echo_all(message):
                         if member is None:
                             return
                         display_name = get_nickname(target_user_id) or member.user.first_name
-                        display_name = escape_html(display_name)
-                        target_user_name = f'<a href="tg://user?id={target_user_id}">{display_name}</a>'
+                        target_user_name = format_user_link(display_name, member.user.username, target_user_id)
                     else:
                         bot.reply_to(message, "Пользователь с таким юзернеймом не найден в моей базе.")
                         return
@@ -1144,7 +1149,12 @@ def echo_all(message):
                     settings = get_chat_warn_settings(cursor, message.chat.id)
 
                 if not warns:
-                    bot.reply_to(message, f"У {user_link} нет активных предупреждений в этом чате 😇", parse_mode='HTML')
+                    bot.reply_to(
+                        message,
+                        f"У {user_link} нет активных предупреждений в этом чате 😇",
+                        parse_mode='HTML',
+                        disable_web_page_preview=True
+                    )
                 else:
                     text = f"⚠️ <b>Предупреждения пользователя {user_link}:</b>\n"
                     text += f"Активно: <b>[{len(warns)}/{settings['max_warns']}]</b>\n\n"
@@ -1152,7 +1162,7 @@ def echo_all(message):
                         created = w['created_at']
                         expires = w['expires_at'] or "бессрочно"
                         text += f"{idx}. Выдан: {created} (истекает: {expires})\n"
-                    bot.reply_to(message, text, parse_mode='HTML')
+                    bot.reply_to(message, text, parse_mode='HTML', disable_web_page_preview=True)
             except Exception as e:
                 catch_error(message, e)
 
@@ -1635,7 +1645,13 @@ def echo_all(message):
                 InlineKeyboardButton("Согласиться", callback_data=f"marriage_agree_{request_id}"),
                 InlineKeyboardButton("Отказаться", callback_data=f"marriage_reject_{request_id}")
             )
-            bot.send_message(chat_id, text, parse_mode='HTML', reply_markup=markup)
+            bot.send_message(
+                chat_id,
+                text,
+                parse_mode='HTML',
+                reply_markup=markup,
+                disable_web_page_preview=True
+            )
         except Exception as e:
             catch_error(message, e)
 
@@ -1646,7 +1662,12 @@ def echo_all(message):
             spouse_id = dissolve_marriage(chat_id, user_id)
             if spouse_id:
                 spouse_link = get_user_link_sync(spouse_id, chat_id)
-                bot.reply_to(message, f"Развод оформлен. Сожалеем для {spouse_link}.", parse_mode='HTML')
+                bot.reply_to(
+                    message,
+                    f"Развод оформлен. Сожалеем для {spouse_link}.",
+                    parse_mode='HTML',
+                    disable_web_page_preview=True
+                )
             else:
                 bot.reply_to(message, "Так ты не в браке даже...")
         except Exception as e:
@@ -1674,7 +1695,12 @@ def echo_all(message):
                     else:
                         duration = f"{days} дней"
                     text += f"{i}. {link1} 💍 {link2} (Заключен: {date_str}, Длительность: {duration})\n"
-                bot.send_message(message.chat.id, text, parse_mode='HTML')
+                bot.send_message(
+                    message.chat.id,
+                    text,
+                    parse_mode='HTML',
+                    disable_web_page_preview=True
+                )
         except Exception as e:
             catch_error(message, e)
 
@@ -1755,7 +1781,7 @@ def echo_all(message):
                     extra_notes.append(f"👀 <i>Опаньки... А {link2} вообще-то уже в браке с {s2_link}!</i>")
 
             text = format_shipping_message(link1, link2, ship_name, percent, extra_notes=extra_notes)
-            bot.send_message(chat_id, text, parse_mode='HTML')
+            bot.send_message(chat_id, text, parse_mode='HTML', disable_web_page_preview=True)
             return
         except Exception as e:
             catch_error(message, e)
@@ -1787,7 +1813,7 @@ def echo_all(message):
                 target_name = get_name(message)  # get_name обработает @
             else:
                 # Self-команда: цель = sender
-                target_name = f'<a href="tg://user?id={sender_id}">{sender_display}</a>'
+                target_name = format_user_link(sender_display, message.from_user.username, sender_id)
 
             command_data = effective_commands[command]
             template = command_data['accept']
