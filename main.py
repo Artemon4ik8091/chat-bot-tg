@@ -1568,7 +1568,12 @@ def echo_all(message):
             help_text_rp += "</blockquote>"
 
             bot.reply_to(message, help_text, parse_mode='HTML')
-            bot.send_message(message.chat.id, help_text_rp, parse_mode='HTML')
+            bot.send_message(
+                message.chat.id,
+                help_text_rp,
+                parse_mode='HTML',
+                disable_web_page_preview=True
+            )
         except Exception as e:
             catch_error(message, e)
 
@@ -1839,7 +1844,12 @@ def echo_all(message):
             if user_phrase:
                 response_text += f'\nСо словами: {user_phrase}'
             try:
-                bot.reply_to(message, response_text, parse_mode='HTML')
+                bot.reply_to(
+                    message,
+                    response_text,
+                    parse_mode='HTML',
+                    disable_web_page_preview=True
+                )
             except Exception as e:
                 catch_error(message, e)
 
