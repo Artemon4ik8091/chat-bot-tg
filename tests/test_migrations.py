@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from migrations import (
     MIGRATIONS,
+    backfill_chat_member_first_seen,
     column_exists,
     get_migration_status,
     run_migrations,
@@ -36,7 +37,7 @@ class MigrationTests(unittest.TestCase):
         expected_tables = [
             'users', 'low_admins', 'warns', 'chats', 'user_profiles',
             'user_data', 'rp_requests', 'marriages', 'marriage_requests',
-            'chat_warn_settings', 'chat_warns', 'schema_migrations'
+            'chat_warn_settings', 'chat_warns', 'chat_members', 'schema_migrations'
         ]
         for tbl in expected_tables:
             self.assertTrue(table_exists(cursor, tbl), f"Table {tbl} should exist")
@@ -44,6 +45,7 @@ class MigrationTests(unittest.TestCase):
         # Check columns exist
         self.assertTrue(column_exists(cursor, 'rp_requests', 'sender_first_name'))
         self.assertTrue(column_exists(cursor, 'user_data', 'last_mentioned_target'))
+        self.assertTrue(column_exists(cursor, 'chat_members', 'first_seen_at'))
         conn.close()
 
     def test_idempotent_runs(self):
@@ -82,6 +84,7 @@ class MigrationTests(unittest.TestCase):
         # Insert test data into legacy tables
         cursor.execute("INSERT INTO user_data VALUES ('100', '200', '2026-11-08', 42, 'active')")
         cursor.execute("INSERT INTO rp_requests VALUES ('req1', '100', 200, 300, 'обнять', 'привет', '2026-11-08')")
+        cursor.execute("INSERT INTO user_data VALUES ('100', '200', '2026-11-07', 5, 'active')")
         conn.commit()
         conn.close()
 
@@ -97,13 +100,19 @@ class MigrationTests(unittest.TestCase):
         self.assertTrue(column_exists(cursor, 'rp_requests', 'sender_first_name'))
 
         # Verify old data is completely preserved
-        cursor.execute("SELECT chat_id, user_id, message_count FROM user_data WHERE chat_id='100'")
+        cursor.execute(
+            "SELECT chat_id, user_id, message_count FROM user_data "
+            "WHERE chat_id='100' AND date='2026-11-08'"
+        )
         row = cursor.fetchone()
         self.assertEqual(row, ('100', '200', 42))
 
         cursor.execute("SELECT request_id, command FROM rp_requests WHERE request_id='req1'")
         row_rp = cursor.fetchone()
         self.assertEqual(row_rp, ('req1', 'обнять'))
+
+        cursor.execute("SELECT first_seen_at FROM chat_members WHERE chat_id='100' AND user_id='200'")
+        self.assertEqual(cursor.fetchone(), ('2026-11-07 00:00:00',))
         conn.close()
 
     def test_migration_status(self):
@@ -117,6 +126,43 @@ class MigrationTests(unittest.TestCase):
         self.assertTrue(status2['db_exists'])
         self.assertEqual(len(status2['applied']), len(MIGRATIONS))
         self.assertEqual(status2['pending'], [])
+
+    def test_backfill_chat_member_first_seen_uses_fallback_only_when_missing(self):
+        conn = sqlite3.connect(':memory:')
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE chat_members (
+                chat_id TEXT,
+                user_id TEXT,
+                first_seen_at TEXT NOT NULL,
+                PRIMARY KEY (chat_id, user_id)
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE user_data (
+                chat_id TEXT,
+                user_id TEXT,
+                date TEXT
+            )
+        ''')
+        cursor.executemany(
+            'INSERT INTO user_data (chat_id, user_id, date) VALUES (?, ?, ?)',
+            [('100', 'known', '2026-11-10'), ('100', 'missing', '2026-11-11')]
+        )
+        cursor.executemany(
+            'INSERT INTO chat_members (chat_id, user_id, first_seen_at) VALUES (?, ?, ?)',
+            [('100', 'known', '2026-11-10 09:00:00'), ('100', 'blank', '')]
+        )
+
+        backfill_chat_member_first_seen(cursor, '2026-11-12 20:33:00')
+
+        cursor.execute('SELECT user_id, first_seen_at FROM chat_members ORDER BY user_id')
+        self.assertEqual(cursor.fetchall(), [
+            ('blank', '2026-11-12 20:33:00'),
+            ('known', '2026-11-10 09:00:00'),
+            ('missing', '2026-11-12 20:33:00'),
+        ])
+        conn.close()
 
 
 if __name__ == '__main__':

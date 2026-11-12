@@ -29,6 +29,27 @@ def column_exists(cursor: sqlite3.Cursor, table_name: str, column_name: str) -> 
     return column_name in columns
 
 
+def backfill_chat_member_first_seen(cursor: sqlite3.Cursor, fallback_time: str):
+    cursor.execute(
+        """UPDATE chat_members SET first_seen_at = ?
+           WHERE first_seen_at IS NULL OR TRIM(first_seen_at) = ''""",
+        (fallback_time,)
+    )
+    cursor.execute(
+        """INSERT OR IGNORE INTO chat_members (chat_id, user_id, first_seen_at)
+           SELECT DISTINCT user_data.chat_id, user_data.user_id, ?
+           FROM user_data
+           WHERE user_data.chat_id IS NOT NULL AND user_data.user_id IS NOT NULL
+             AND TRIM(user_data.chat_id) != '' AND TRIM(user_data.user_id) != ''
+             AND NOT EXISTS (
+                 SELECT 1 FROM chat_members
+                 WHERE chat_members.chat_id = user_data.chat_id
+                   AND chat_members.user_id = user_data.user_id
+             )""",
+        (fallback_time,)
+    )
+
+
 # ==============================================================================
 # MIGRATION DEFINITIONS
 # ==============================================================================
@@ -166,12 +187,32 @@ def migration_005_chat_warn_system(cursor: sqlite3.Cursor):
     ''')
 
 
+def migration_006_chat_member_first_seen(cursor: sqlite3.Cursor):
+    """Track when each user was first seen in a chat."""
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS chat_members (
+            chat_id TEXT,
+            user_id TEXT,
+            first_seen_at TEXT NOT NULL,
+            PRIMARY KEY (chat_id, user_id)
+        )
+    ''')
+    cursor.execute('''
+        INSERT OR IGNORE INTO chat_members (chat_id, user_id, first_seen_at)
+        SELECT chat_id, user_id, MIN(date) || ' 00:00:00'
+        FROM user_data
+        WHERE date IS NOT NULL AND date != ''
+        GROUP BY chat_id, user_id
+    ''')
+
+
 MIGRATIONS: List[Migration] = [
     Migration(1, "base_schema", migration_001_base_schema),
     Migration(2, "rp_requests", migration_002_rp_requests),
     Migration(3, "marriages", migration_003_marriages),
     Migration(4, "user_data_last_target", migration_004_user_data_last_target),
     Migration(5, "chat_warn_system", migration_005_chat_warn_system),
+    Migration(6, "chat_member_first_seen", migration_006_chat_member_first_seen),
 ]
 
 

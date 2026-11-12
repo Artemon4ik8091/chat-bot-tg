@@ -58,7 +58,7 @@ from warn_utils import (
     set_chat_max_warns,
     set_chat_warn_duration,
 )
-from migrations import run_migrations
+from migrations import backfill_chat_member_first_seen, run_migrations
 
 ####### CREATE DB IF NOT EXIST ##########
 
@@ -88,9 +88,15 @@ def db_connection():
     finally:
         conn.close()
 
+def backfill_missing_chat_member_first_seen():
+    startup_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    with db_connection() as cursor:
+        backfill_chat_member_first_seen(cursor, startup_time)
+
 # Initialize SQLite database via migrations
 def init_sqlite_db():
     applied = run_migrations('bot_data.db', make_backup=True)
+    backfill_missing_chat_member_first_seen()
     if applied:
         print(f'DEBUG: SQLite database migrated ({len(applied)} migrations applied).')
     else:
@@ -729,6 +735,42 @@ def add_chat_to_db(chat_id, chat_title):
     with db_connection() as cursor:
         cursor.execute('INSERT OR REPLACE INTO chats (chat_id, chat_title) VALUES (?, ?)', (str(chat_id), chat_title))
 
+def record_chat_member_first_seen(cursor, chat_id, user_id, seen_at):
+    cursor.execute(
+        'INSERT OR IGNORE INTO chat_members (chat_id, user_id, first_seen_at) VALUES (?, ?, ?)',
+        (str(chat_id), str(user_id), seen_at)
+    )
+
+def get_chat_member_first_seen(chat_id, user_id):
+    with db_connection() as cursor:
+        cursor.execute(
+            'SELECT first_seen_at FROM chat_members WHERE chat_id = ? AND user_id = ?',
+            (str(chat_id), str(user_id))
+        )
+        result = cursor.fetchone()
+        if not result or not result[0] or not result[0].strip():
+            first_seen_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            if result:
+                cursor.execute(
+                    """UPDATE chat_members SET first_seen_at = ?
+                       WHERE chat_id = ? AND user_id = ?
+                         AND (first_seen_at IS NULL OR TRIM(first_seen_at) = '')""",
+                    (first_seen_at, str(chat_id), str(user_id))
+                )
+            else:
+                record_chat_member_first_seen(cursor, chat_id, user_id, first_seen_at)
+            cursor.execute(
+                'SELECT first_seen_at FROM chat_members WHERE chat_id = ? AND user_id = ?',
+                (str(chat_id), str(user_id))
+            )
+            result = cursor.fetchone()
+    if not result:
+        return "Нет данных"
+    try:
+        return datetime.strptime(result[0], '%Y-%m-%d %H:%M:%S').strftime('%d.%m.%Y %H:%M')
+    except ValueError:
+        return result[0]
+
 def get_all_chats():
     with db_connection() as cursor:
         cursor.execute('SELECT chat_id FROM chats')
@@ -747,12 +789,29 @@ def handle_new_chat_members(message):
     db = read_db()
     owner_id = db['owner_id']
     bot_id = bot.get_me().id
+    seen_at = datetime.fromtimestamp(message.date).strftime('%Y-%m-%d %H:%M:%S')
+    with db_connection() as cursor:
+        for user in message.new_chat_members:
+            record_chat_member_first_seen(cursor, message.chat.id, user.id, seen_at)
     for user in message.new_chat_members:
         if user.id == bot_id:
             chat_title = bot.get_chat(message.chat.id).title
             add_chat_to_db(message.chat.id, chat_title)
         if user.id == owner_id:
             bot.send_message(message.chat.id, "Добро пожаловать, мой создатель! Рад вас видеть в этом чате. Как видишь я тут.. модерирую)")
+
+@bot.message_handler(content_types=['left_chat_member'])
+def handle_left_chat_member(message):
+    user = message.left_chat_member
+    with db_connection() as cursor:
+        cursor.execute(
+            'DELETE FROM user_data WHERE chat_id = ? AND user_id = ?',
+            (str(message.chat.id), str(user.id))
+        )
+        cursor.execute(
+            'DELETE FROM chat_members WHERE chat_id = ? AND user_id = ?',
+            (str(message.chat.id), str(user.id))
+        )
 
 @bot.message_handler(func=lambda message: message.text and message.text.upper() in ['ТОП ДЕНЬ', 'ТОП ДНЯ'])
 def handle_top_day(message):
@@ -855,7 +914,9 @@ def echo_all(message):
         user_id = str(message.from_user.id)
         date = datetime.now().strftime('%Y-%m-%d')
         current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        first_seen_at = datetime.fromtimestamp(message.date).strftime('%Y-%m-%d %H:%M:%S')
         with db_connection() as cursor:
+            record_chat_member_first_seen(cursor, chat_id, user_id, first_seen_at)
             cursor.execute('SELECT message_count FROM user_data WHERE chat_id = ? AND user_id = ? AND date = ?',
                            (chat_id, user_id, date))
             result = cursor.fetchone()
@@ -1033,8 +1094,10 @@ def echo_all(message):
         status_text = "\n👤 Просто пользователь" if not owner_text and not beta_text else ""
         description_text = f"\n📝 {get_description(user_id)}" if get_description(user_id) else ""
         marriage_text = get_profile_addition(int(chat_id), user_id)
+        first_seen_at = get_chat_member_first_seen(chat_id, user_id)
         reply_text = (
             f"Ты <b>{username}</b>{owner_text}{beta_text}{status_text}{description_text}{marriage_text}\n\n"
+            f"Впервые появился в чате: {first_seen_at}\n"
             f"Последний твой актив:\n{last_active_time}\n"
             f"Краткая стата (д|н|м|вся):\n{daily_count}|{weekly_count}|{monthly_count}|{all_time_count}"
         )
@@ -1111,8 +1174,10 @@ def echo_all(message):
                 status_text = "\n👤 Просто пользователь" if not owner_text and not beta_text else ""
                 description_text = f"\n📝 {get_description(target_user_id)}" if get_description(target_user_id) else ""
                 marriage_text = get_profile_addition(int(chat_id), target_user_id)
+                first_seen_at = get_chat_member_first_seen(chat_id, target_user_id)
                 reply_text = (
                     f"Это <b>{target_user_name}</b>{owner_text}{beta_text}{status_text}{description_text}{marriage_text}\n\n"
+                    f"Впервые появился в чате: {first_seen_at}\n"
                     f"Последний актив:\n{last_active_time}\n"
                     f"Краткая стата (д|н|м|вся):\n{daily_count}|{weekly_count}|{monthly_count}|{all_time_count}"
                 )
