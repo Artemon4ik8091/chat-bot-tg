@@ -1662,6 +1662,7 @@ def echo_all(message):
 Топ месяц / Топ месяца - Топ крутышек за месяц в этом чате.
 Топ все / Топ вся - Топ крутышек за все время в этом чате.
 Кто ты @username / reply - Показывает инфу о пользователе.
+Поженить пару @user1 @user2 - Принудительно зарегистрировать брак (только администраторы).
 Бан/Разбан - Блокировка/разблокировка пользователя
 Кик - Изгнание пользователя
 Мут/Размут [2m/2h] - Лишение/выдача права слова пользователю (m - минуты, h - часы)
@@ -1770,6 +1771,97 @@ def echo_all(message):
                 bot.reply_to(message, f"РП-команда <code>{command_name}</code> не найдена.", parse_mode='HTML')
         except Exception as e:
             catch_error(message, e)
+
+    marriage_pair_command = re.match(
+        r'^поженить\s+пару(?:\s|$)',
+        message.text.strip(),
+        flags=re.IGNORECASE
+    ) if message.text else None
+    if marriage_pair_command:
+        try:
+            if message.chat.type not in ('group', 'supergroup'):
+                bot.reply_to(message, "Эту команду можно использовать только в группе.")
+                return
+            if not message.from_user:
+                bot.reply_to(message, "Не удалось определить администратора команды.")
+                return
+
+            admin = retry_bot_call(
+                message,
+                bot.get_chat_member,
+                message.chat.id,
+                message.from_user.id
+            )
+            if admin is None:
+                return
+            if admin.status not in ('administrator', 'creator'):
+                bot.reply_to(message, "Поженить пару могут только администраторы группы.")
+                return
+
+            match = re.fullmatch(
+                r'поженить\s+пару\s+\{?@([a-zA-Z0-9_]+)\}?\s+\{?@([a-zA-Z0-9_]+)\}?',
+                message.text.strip(),
+                flags=re.IGNORECASE
+            )
+            if not match:
+                bot.reply_to(message, "Формат команды: поженить пару @user1 @user2")
+                return
+
+            usernames = match.groups()
+            users = read_users()
+            target_ids = []
+            for username in usernames:
+                target_id = users.get(sha(username.lower()))
+                if target_id is None:
+                    bot.reply_to(
+                        message,
+                        f"Не нашёл @{escape_html(username)} в своей базе. Пользователь должен написать в чате."
+                    )
+                    return
+                target_ids.append(int(target_id))
+
+            user1_id, user2_id = target_ids
+            if user1_id == user2_id:
+                bot.reply_to(message, "Нельзя поженить пользователя с самим собой.")
+                return
+
+            for username, target_id in zip(usernames, target_ids):
+                member = retry_bot_call(
+                    message,
+                    bot.get_chat_member,
+                    message.chat.id,
+                    target_id
+                )
+                if member is None:
+                    return
+                if member.status in ('left', 'kicked') or member.user.is_bot:
+                    bot.reply_to(
+                        message,
+                        f"@{escape_html(username)} должен быть участником этой группы и не быть ботом."
+                    )
+                    return
+
+            spouse1 = get_spouse(message.chat.id, user1_id)
+            spouse2 = get_spouse(message.chat.id, user2_id)
+            if spouse1 or spouse2:
+                if spouse1 == user2_id and spouse2 == user1_id:
+                    bot.reply_to(message, "Эти пользователи уже состоят в браке.")
+                else:
+                    bot.reply_to(message, "Нельзя поженить пару: один из пользователей уже состоит в браке.")
+                return
+
+            register_marriage(message.chat.id, user1_id, user2_id)
+            user1_link = get_user_link_sync(user1_id, message.chat.id)
+            user2_link = get_user_link_sync(user2_id, message.chat.id)
+            bot.reply_to(
+                message,
+                f"💍 Администратор принудительно заключил брак между {user1_link} и {user2_link}!",
+                parse_mode='HTML',
+                disable_web_page_preview=True
+            )
+        except Exception as e:
+            catch_error(message, e)
+        return
 
     if message.text.upper() == 'БРАК':
         try:
