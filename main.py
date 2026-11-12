@@ -319,10 +319,6 @@ def remove_description(user_id):
     with db_connection() as cursor:
         cursor.execute('UPDATE user_profiles SET description = NULL WHERE user_id = ?', (user_id,))
 
-def greet_owner_if_self(message, owner_id):
-    if message.from_user.id == owner_id:
-        bot.send_message(message.chat.id, "Так точно, создатель!")
-
 def get_uptime():
     try:
         # Запускаем команду 'uptime'
@@ -1319,7 +1315,6 @@ def echo_all(message):
             if have_rights(message):
                 db = read_db()
                 owner_id = db['owner_id']
-                greet_owner_if_self(message, owner_id)
                 if message.reply_to_message:
                     target_id = message.reply_to_message.from_user.id
                 else:
@@ -1353,7 +1348,6 @@ def echo_all(message):
             if have_rights(message):
                 db = read_db()
                 owner_id = db['owner_id']
-                greet_owner_if_self(message, owner_id)
                 if message.reply_to_message:
                     target_id = message.reply_to_message.from_user.id
                 else:
@@ -1376,7 +1370,6 @@ def echo_all(message):
             if have_rights(message):
                 db = read_db()
                 owner_id = db['owner_id']
-                greet_owner_if_self(message, owner_id)
                 target = get_target(message)
                 time = get_time(message)
                 if target is None:
@@ -1417,9 +1410,6 @@ def echo_all(message):
     if message.text.upper().startswith('РАЗМУТ'):
         try:
             if have_rights(message):
-                db = read_db()
-                owner_id = db['owner_id']
-                greet_owner_if_self(message, owner_id)
                 target = get_target(message)
                 if target:
                     retry_bot_call(message, bot.restrict_chat_member, message.chat.id, target, can_send_messages=True,
@@ -1435,9 +1425,6 @@ def echo_all(message):
     if message.text.upper() == "КИК":
         try:
             if have_rights(message):
-                db = read_db()
-                owner_id = db['owner_id']
-                greet_owner_if_self(message, owner_id)
                 target = get_target(message)
                 if target:
                     retry_bot_call(message, bot.ban_chat_member, message.chat.id, target)
@@ -1454,7 +1441,6 @@ def echo_all(message):
             if have_rights(message):
                 db = read_db()
                 owner_id = db['owner_id']
-                greet_owner_if_self(message, owner_id)
                 target = get_target(message)
                 if target is None:
                     # Проверяем, если это реплай на владельца
@@ -1485,9 +1471,6 @@ def echo_all(message):
     if message.text.upper() == "РАЗБАН":
         try:
             if have_rights(message):
-                db = read_db()
-                owner_id = db['owner_id']
-                greet_owner_if_self(message, owner_id)
                 target = get_target(message)
                 if target:
                     retry_bot_call(message, bot.unban_chat_member, message.chat.id, target)
@@ -1503,7 +1486,6 @@ def echo_all(message):
             if have_rights(message):
                 db = read_db()
                 owner_id = db['owner_id']
-                greet_owner_if_self(message, owner_id)
                 retry_bot_call(message, bot.set_chat_permissions, message.chat.id, telebot.types.ChatPermissions(
                     can_send_messages=False,
                     can_send_audios=False,
@@ -1545,9 +1527,6 @@ def echo_all(message):
     if message.text.upper() == '+ЧАТ':
         try:
             if have_rights(message):
-                db = read_db()
-                owner_id = db['owner_id']
-                greet_owner_if_self(message, owner_id)
                 retry_bot_call(message, bot.set_chat_permissions, message.chat.id, telebot.types.ChatPermissions(
                     can_send_messages=True,
                     can_send_audios=True,
@@ -1567,9 +1546,6 @@ def echo_all(message):
     if message.text.upper() in ["ПИН", "ЗАКРЕП"]:
         try:
             if have_rights(message):
-                db = read_db()
-                owner_id = db['owner_id']
-                greet_owner_if_self(message, owner_id)
                 retry_bot_call(message, bot.pin_chat_message, message.chat.id, message.reply_to_message.id)
                 bot.reply_to(message, "Видимо это что то важное.. кхм... Закрепил!")
         except:
@@ -1578,9 +1554,6 @@ def echo_all(message):
     if message.text.upper() == "АНПИН":
         try:
             if have_rights(message):
-                db = read_db()
-                owner_id = db['owner_id']
-                greet_owner_if_self(message, owner_id)
                 retry_bot_call(message, bot.unpin_chat_message, message.chat.id, message.reply_to_message.id)
                 bot.reply_to(message, "Больше не важное, лол.. кхм... Открепил!")
         except Exception as e:
@@ -1589,9 +1562,6 @@ def echo_all(message):
     if message.text.upper() == '+АДМИН':
         try:
             if have_rights(message):
-                db = read_db()
-                owner_id = db['owner_id']
-                greet_owner_if_self(message, owner_id)
                 user_id = message.reply_to_message.from_user.id
                 chat_id = message.chat.id
                 retry_bot_call(message, bot.promote_chat_member, chat_id, user_id, can_manage_chat=True, can_change_info=True, can_delete_messages=True, can_restrict_members=True, can_invite_users=True, can_pin_messages=True, can_manage_video_chats=True, can_manage_voice_chats=True, can_post_stories=True, can_edit_stories=True, can_delete_stories=True)
@@ -1602,9 +1572,6 @@ def echo_all(message):
     if message.text.upper() == '-АДМИН':
         try:
             if have_rights(message):
-                db = read_db()
-                owner_id = db['owner_id']
-                greet_owner_if_self(message, owner_id)
                 user_id = message.reply_to_message.from_user.id
                 chat_id = message.chat.id
                 retry_bot_call(message, bot.promote_chat_member, chat_id, user_id, can_manage_chat=False, can_change_info=False, can_delete_messages=False, can_restrict_members=False, can_invite_users=False, can_pin_messages=False, can_manage_video_chats=False, can_manage_voice_chats=False, can_post_stories=False, can_edit_stories=False, can_delete_stories=False)
@@ -1615,9 +1582,6 @@ def echo_all(message):
     if message.text.upper() == "-СМС":
         try:
             if have_rights(message):
-                db = read_db()
-                owner_id = db['owner_id']
-                greet_owner_if_self(message, owner_id)
                 retry_bot_call(message, bot.delete_message, message.chat.id, message.reply_to_message.id)
                 retry_bot_call(message, bot.delete_message, message.chat.id, message.id)
         except Exception as e:
