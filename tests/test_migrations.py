@@ -46,6 +46,7 @@ class MigrationTests(unittest.TestCase):
         self.assertTrue(column_exists(cursor, 'rp_requests', 'sender_first_name'))
         self.assertTrue(column_exists(cursor, 'user_data', 'last_mentioned_target'))
         self.assertTrue(column_exists(cursor, 'chat_members', 'first_seen_at'))
+        self.assertTrue(column_exists(cursor, 'chat_members', 'left_at'))
         conn.close()
 
     def test_idempotent_runs(self):

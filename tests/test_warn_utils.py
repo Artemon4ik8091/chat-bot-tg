@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from warn_utils import (
     add_warn,
     cleanup_expired_warns,
+    find_duration_in_text,
     format_duration,
     get_chat_warn_settings,
     get_user_warn_count,
@@ -96,10 +97,23 @@ class WarnUtilsTests(unittest.TestCase):
         self.assertEqual(parse_duration_string('2d'), 172800)
         self.assertEqual(parse_duration_string('30m'), 1800)
         self.assertEqual(parse_duration_string('60s'), 60)
+        self.assertEqual(parse_duration_string('20 минут'), 1200)
+        self.assertEqual(parse_duration_string('1 минуту'), 60)
+        self.assertEqual(parse_duration_string('3 дня'), 259200)
+        self.assertEqual(parse_duration_string('неделя'), 604800)
+        self.assertEqual(parse_duration_string('3 месяца'), 7776000)
+        self.assertEqual(parse_duration_string('год'), 31536000)
+        self.assertEqual(parse_duration_string('1 час 20 минут'), 4800)
+        self.assertEqual(parse_duration_string('2 недели и 3 дня'), 1468800)
         self.assertEqual(parse_duration_string('0'), 0)
         self.assertEqual(parse_duration_string('навсегда'), 0)
         self.assertEqual(parse_duration_string('бессрочно'), 0)
         self.assertEqual(parse_duration_string('invalid'), None)
+
+    def test_find_duration_in_command_arguments(self):
+        self.assertEqual(find_duration_in_text('@member 20 минут за флуд'), 1200)
+        self.assertEqual(find_duration_in_text('неделя @member'), 604800)
+        self.assertEqual(find_duration_in_text('без срока'), None)
 
     def test_format_duration(self):
         self.assertEqual(format_duration(86400), '1 дн.')

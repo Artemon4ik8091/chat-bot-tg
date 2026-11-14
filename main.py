@@ -48,6 +48,7 @@ from shipping_utils import (
 from warn_utils import (
     add_warn,
     cleanup_expired_warns,
+    find_duration_in_text,
     format_duration,
     get_chat_warn_settings,
     get_user_warn_count,
@@ -57,6 +58,11 @@ from warn_utils import (
     remove_warn,
     set_chat_max_warns,
     set_chat_warn_duration,
+)
+from chat_member_utils import (
+    mark_chat_member_left,
+    mark_chat_member_returned,
+    purge_expired_chat_members,
 )
 from migrations import backfill_chat_member_first_seen, run_migrations
 
@@ -96,6 +102,8 @@ def backfill_missing_chat_member_first_seen():
 # Initialize SQLite database via migrations
 def init_sqlite_db():
     applied = run_migrations('bot_data.db', make_backup=True)
+    with db_connection() as cursor:
+        purge_expired_chat_members(cursor)
     backfill_missing_chat_member_first_seen()
     if applied:
         print(f'DEBUG: SQLite database migrated ({len(applied)} migrations applied).')
@@ -109,6 +117,7 @@ def warn_cleanup_worker():
         try:
             with db_connection() as cursor:
                 cleanup_expired_warns(cursor)
+                purge_expired_chat_members(cursor)
         except Exception as e:
             print(f"DEBUG: Error in warn cleanup: {e}")
         time.sleep(60)
@@ -456,20 +465,10 @@ def get_name(message):
         return "пользователь"
 
 def get_time(message):
-    formats = {'s': [1, 'секунд(ы)'], 'm': [60, 'минут(ы)'], 'h': [3600, 'час(а)'], 'd': [86400, 'день/дня']}
-    text = message.text.split()[1:]
-    time = None
-    for i in text:
-        if time:
-            break
-        for f in list(formats.keys()):
-            if f in i:
-                try:
-                    time = [i[:-1], int(i[:-1]) * formats[i[-1]][0], formats[i[-1]][1]]
-                    break
-                except:
-                    pass
-    return time
+    duration = find_duration_in_text(' '.join(message.text.split()[1:]))
+    if duration is None or duration <= 0:
+        return None
+    return [format_duration(duration), duration]
 
 def have_rights(message, set_la=False):
     db = read_db()
@@ -562,7 +561,11 @@ user_data = load_data('user_data.json')
 def get_user_daily_stats(chat_id, user_id):
     today = datetime.now().strftime('%Y-%m-%d')
     with db_connection() as cursor:
-        cursor.execute('SELECT message_count FROM user_data WHERE chat_id = ? AND user_id = ? AND date = ?',
+        cursor.execute('''SELECT user_data.message_count FROM user_data
+                          JOIN chat_members ON chat_members.chat_id = user_data.chat_id
+                            AND chat_members.user_id = user_data.user_id
+                          WHERE user_data.chat_id = ? AND user_data.user_id = ?
+                            AND user_data.date = ? AND chat_members.left_at IS NULL''',
                        (str(chat_id), str(user_id), today))
         result = cursor.fetchone()
     return result[0] if result else 0
@@ -571,7 +574,11 @@ def get_user_weekly_stats(chat_id, user_id):
     week_ago = datetime.now() - timedelta(days=7)
     week_ago_str = week_ago.strftime('%Y-%m-%d')
     with db_connection() as cursor:
-        cursor.execute('SELECT SUM(message_count) FROM user_data WHERE chat_id = ? AND user_id = ? AND date >= ?',
+        cursor.execute('''SELECT SUM(user_data.message_count) FROM user_data
+                          JOIN chat_members ON chat_members.chat_id = user_data.chat_id
+                            AND chat_members.user_id = user_data.user_id
+                          WHERE user_data.chat_id = ? AND user_data.user_id = ?
+                            AND user_data.date >= ? AND chat_members.left_at IS NULL''',
                        (str(chat_id), str(user_id), week_ago_str))
         result = cursor.fetchone()
     return result[0] if result[0] else 0
@@ -580,14 +587,22 @@ def get_user_monthly_stats(chat_id, user_id):
     month_ago = datetime.now() - timedelta(days=30)
     month_ago_str = month_ago.strftime('%Y-%m-%d')
     with db_connection() as cursor:
-        cursor.execute('SELECT SUM(message_count) FROM user_data WHERE chat_id = ? AND user_id = ? AND date >= ?',
+        cursor.execute('''SELECT SUM(user_data.message_count) FROM user_data
+                          JOIN chat_members ON chat_members.chat_id = user_data.chat_id
+                            AND chat_members.user_id = user_data.user_id
+                          WHERE user_data.chat_id = ? AND user_data.user_id = ?
+                            AND user_data.date >= ? AND chat_members.left_at IS NULL''',
                        (str(chat_id), str(user_id), month_ago_str))
         result = cursor.fetchone()
     return result[0] if result[0] else 0
 
 def get_user_all_time_stats(chat_id, user_id):
     with db_connection() as cursor:
-        cursor.execute('SELECT SUM(message_count) FROM user_data WHERE chat_id = ? AND user_id = ?',
+        cursor.execute('''SELECT SUM(user_data.message_count) FROM user_data
+                          JOIN chat_members ON chat_members.chat_id = user_data.chat_id
+                            AND chat_members.user_id = user_data.user_id
+                          WHERE user_data.chat_id = ? AND user_data.user_id = ?
+                            AND chat_members.left_at IS NULL''',
                        (str(chat_id), str(user_id)))
         result = cursor.fetchone()
     return result[0] if result[0] else 0
@@ -595,7 +610,11 @@ def get_user_all_time_stats(chat_id, user_id):
 def get_daily_stats(chat_id):
     today = datetime.now().strftime('%Y-%m-%d')
     with db_connection() as cursor:
-        cursor.execute('SELECT user_id, message_count FROM user_data WHERE chat_id = ? AND date = ?',
+        cursor.execute('''SELECT user_data.user_id, user_data.message_count FROM user_data
+                          JOIN chat_members ON chat_members.chat_id = user_data.chat_id
+                            AND chat_members.user_id = user_data.user_id
+                          WHERE user_data.chat_id = ? AND user_data.date = ?
+                            AND chat_members.left_at IS NULL''',
                        (str(chat_id), today))
         daily_stats = {row[0]: row[1] for row in cursor.fetchall()}
     return daily_stats
@@ -604,7 +623,12 @@ def get_weekly_stats(chat_id):
     week_ago = datetime.now() - timedelta(days=7)
     week_ago_str = week_ago.strftime('%Y-%m-%d')
     with db_connection() as cursor:
-        cursor.execute('SELECT user_id, SUM(message_count) FROM user_data WHERE chat_id = ? AND date >= ? GROUP BY user_id',
+        cursor.execute('''SELECT user_data.user_id, SUM(user_data.message_count) FROM user_data
+                          JOIN chat_members ON chat_members.chat_id = user_data.chat_id
+                            AND chat_members.user_id = user_data.user_id
+                          WHERE user_data.chat_id = ? AND user_data.date >= ?
+                            AND chat_members.left_at IS NULL
+                          GROUP BY user_data.user_id''',
                        (str(chat_id), week_ago_str))
         weekly_stats = {row[0]: row[1] for row in cursor.fetchall()}
     return weekly_stats
@@ -613,14 +637,23 @@ def get_monthly_stats(chat_id):
     month_ago = datetime.now() - timedelta(days=30)
     month_ago_str = month_ago.strftime('%Y-%m-%d')
     with db_connection() as cursor:
-        cursor.execute('SELECT user_id, SUM(message_count) FROM user_data WHERE chat_id = ? AND date >= ? GROUP BY user_id',
+        cursor.execute('''SELECT user_data.user_id, SUM(user_data.message_count) FROM user_data
+                          JOIN chat_members ON chat_members.chat_id = user_data.chat_id
+                            AND chat_members.user_id = user_data.user_id
+                          WHERE user_data.chat_id = ? AND user_data.date >= ?
+                            AND chat_members.left_at IS NULL
+                          GROUP BY user_data.user_id''',
                        (str(chat_id), month_ago_str))
         monthly_stats = {row[0]: row[1] for row in cursor.fetchall()}
     return monthly_stats
 
 def get_all_time_stats(chat_id):
     with db_connection() as cursor:
-        cursor.execute('SELECT user_id, SUM(message_count) FROM user_data WHERE chat_id = ? GROUP BY user_id',
+        cursor.execute('''SELECT user_data.user_id, SUM(user_data.message_count) FROM user_data
+                          JOIN chat_members ON chat_members.chat_id = user_data.chat_id
+                            AND chat_members.user_id = user_data.user_id
+                          WHERE user_data.chat_id = ? AND chat_members.left_at IS NULL
+                          GROUP BY user_data.user_id''',
                        (str(chat_id),))
         all_time_stats = {row[0]: row[1] for row in cursor.fetchall()}
     return all_time_stats
@@ -787,8 +820,9 @@ def handle_new_chat_members(message):
     bot_id = bot.get_me().id
     seen_at = datetime.fromtimestamp(message.date).strftime('%Y-%m-%d %H:%M:%S')
     with db_connection() as cursor:
+        purge_expired_chat_members(cursor)
         for user in message.new_chat_members:
-            record_chat_member_first_seen(cursor, message.chat.id, user.id, seen_at)
+            mark_chat_member_returned(cursor, message.chat.id, user.id, seen_at)
     for user in message.new_chat_members:
         if user.id == bot_id:
             chat_title = bot.get_chat(message.chat.id).title
@@ -799,15 +833,19 @@ def handle_new_chat_members(message):
 @bot.message_handler(content_types=['left_chat_member'])
 def handle_left_chat_member(message):
     user = message.left_chat_member
+    left_at = datetime.fromtimestamp(message.date).strftime('%Y-%m-%d %H:%M:%S')
     with db_connection() as cursor:
-        cursor.execute(
-            'DELETE FROM user_data WHERE chat_id = ? AND user_id = ?',
-            (str(message.chat.id), str(user.id))
-        )
-        cursor.execute(
-            'DELETE FROM chat_members WHERE chat_id = ? AND user_id = ?',
-            (str(message.chat.id), str(user.id))
-        )
+        newly_left = mark_chat_member_left(cursor, message.chat.id, user.id, left_at)
+    if newly_left:
+        try:
+            bot.send_message(
+                message.chat.id,
+                f"Статистика {escape_html(user.first_name)} временно скрыта и будет очищена через 7 дней. "
+                "Если участник вернётся в течение недели, статистика восстановится.",
+                parse_mode='HTML'
+            )
+        except Exception as e:
+            catch_error(message, e)
 
 @bot.message_handler(func=lambda message: message.text and message.text.upper() in ['ТОП ДЕНЬ', 'ТОП ДНЯ'])
 def handle_top_day(message):
@@ -1092,9 +1130,12 @@ def echo_all(message):
         monthly_count = get_user_monthly_stats(chat_id, user_id)
         all_time_count = get_user_all_time_stats(chat_id, user_id)
         with db_connection() as cursor:
-            cursor.execute('''SELECT last_activity FROM user_data
-                              WHERE chat_id = ? AND user_id = ? AND last_activity != ''
-                              ORDER BY last_activity DESC LIMIT 1''',
+            cursor.execute('''SELECT user_data.last_activity FROM user_data
+                              JOIN chat_members ON chat_members.chat_id = user_data.chat_id
+                                AND chat_members.user_id = user_data.user_id
+                              WHERE user_data.chat_id = ? AND user_data.user_id = ?
+                                AND user_data.last_activity != '' AND chat_members.left_at IS NULL
+                              ORDER BY user_data.last_activity DESC LIMIT 1''',
                         (chat_id, user_id))
             result = cursor.fetchone()
             last_active_time = format_time_ago(result[0]) if result and result[0] else "Нет данных"
@@ -1172,9 +1213,12 @@ def echo_all(message):
                 monthly_count = get_user_monthly_stats(chat_id, target_user_id)
                 all_time_count = get_user_all_time_stats(chat_id, target_user_id)
                 with db_connection() as cursor:
-                    cursor.execute('''SELECT last_activity FROM user_data
-                                      WHERE chat_id = ? AND user_id = ? AND last_activity != ''
-                                      ORDER BY last_activity DESC LIMIT 1''',
+                    cursor.execute('''SELECT user_data.last_activity FROM user_data
+                                      JOIN chat_members ON chat_members.chat_id = user_data.chat_id
+                                        AND chat_members.user_id = user_data.user_id
+                                      WHERE user_data.chat_id = ? AND user_data.user_id = ?
+                                        AND user_data.last_activity != '' AND chat_members.left_at IS NULL
+                                      ORDER BY user_data.last_activity DESC LIMIT 1''',
                                 (chat_id, target_user_id))
                     result = cursor.fetchone()
                     last_active_time = format_time_ago(result[0]) if result and result[0] else "Нет данных"
@@ -1258,7 +1302,7 @@ def echo_all(message):
                         f"• Лимит варнов до бана: <b>{settings['max_warns']}</b>\n"
                         f"• Срок действия варна: <b>{dur_str}</b>\n\n"
                         f"<i>Изменить лимит:</i> <code>лимит варнов [число]</code>\n"
-                        f"<i>Изменить время:</i> <code>время варна [время]</code> (например: <code>время варна 24h</code>, <code>время варна навсегда</code>)"
+                        f"<i>Изменить время:</i> <code>время варна [срок]</code> (например: <code>время варна 1 день</code>, <code>время варна навсегда</code>)"
                     )
                     bot.reply_to(message, text, parse_mode='HTML')
             except Exception as e:
@@ -1279,7 +1323,7 @@ def echo_all(message):
                     else:
                         dur = parse_duration_string(arg)
                         if dur is None:
-                            bot.reply_to(message, "Неверный формат времени. Примеры: <code>время варна 24h</code>, <code>время варна 7d</code>, <code>время варна 30m</code>, <code>время варна навсегда</code>.", parse_mode='HTML')
+                            bot.reply_to(message, "Неверный формат времени. Примеры: <code>время варна 24 часа</code>, <code>время варна 1 неделя</code>, <code>время варна 30 минут</code>, <code>время варна навсегда</code>.", parse_mode='HTML')
                         else:
                             with db_connection() as cursor:
                                 set_chat_warn_duration(cursor, message.chat.id, dur)
@@ -1342,17 +1386,7 @@ def echo_all(message):
                         bot.reply_to(message, "Нельзя выдать предупреждение администратору.")
                     else:
                         custom_dur = None
-                        time_info = get_time(message)
-                        if time_info:
-                            custom_dur = time_info[1]
-                        else:
-                            parts = message.text.strip().split()
-                            for p in parts[1:]:
-                                if not p.startswith('@'):
-                                    parsed = parse_duration_string(p)
-                                    if parsed is not None:
-                                        custom_dur = parsed
-                                        break
+                        custom_dur = find_duration_in_text(' '.join(message.text.strip().split()[1:]))
                         warn_user(message, target_id, duration_seconds=custom_dur)
         except Exception as e:
             catch_error(message, e)
@@ -1393,7 +1427,7 @@ def echo_all(message):
                         if potential_target == owner_id:
                             # Притворяемся, что мутим
                             if time:
-                                answer = f'Я заклеил ему рот на {time[0]} {time[2]}. Маловато как по мне, ну ладно.'
+                                answer = f'Я заклеил ему рот на {time[0]}. Маловато как по мне, ну ладно.'
                             else:
                                 answer = f'Я заклеил ему рот.'
                             bot.reply_to(message, answer, parse_mode='HTML')
@@ -1403,14 +1437,14 @@ def echo_all(message):
                     if target == owner_id:
                         # Притворяемся, что мутим
                         if time:
-                            answer = f'Я заклеил ему рот на {time[0]} {time[2]}. Маловато как по мне, ну ладно.'
+                            answer = f'Я заклеил ему рот на {time[0]}. Маловато как по мне, ну ладно.'
                         else:
                             answer = f'Я заклеил ему рот.'
                         bot.reply_to(message, answer, parse_mode='HTML')
                     else:
                         if time:
                             retry_bot_call(message, bot.restrict_chat_member, message.chat.id, target, until_date=message.date + time[1])
-                            answer = f'Я заклеил ему рот на {time[0]} {time[2]}. Маловато как по мне, ну ладно.'
+                            answer = f'Я заклеил ему рот на {time[0]}. Маловато как по мне, ну ладно.'
                         else:
                             retry_bot_call(message, bot.restrict_chat_member, message.chat.id, target, until_date=message.date)
                             answer = f'Я заклеил ему рот.'
@@ -1450,12 +1484,13 @@ def echo_all(message):
         except Exception as e:
             catch_error(message, e)
 
-    if message.text.upper() == "БАН":
+    if message.text.upper() == "БАН" or message.text.upper().startswith("БАН "):
         try:
             if have_rights(message):
                 db = read_db()
                 owner_id = db['owner_id']
                 target = get_target(message)
+                duration = get_time(message)
                 if target is None:
                     # Проверяем, если это реплай на владельца
                     if message.reply_to_message:
@@ -1476,9 +1511,26 @@ def echo_all(message):
                         bot.reply_to(message, f'''Этот плохиш был изгнан с сие великой группы и не имеет права прощения!
     ''', parse_mode='HTML')
                     else:
-                        retry_bot_call(message, bot.ban_chat_member, message.chat.id, target)
-                        bot.reply_to(message, f'''Этот плохиш был изгнан с сие великой группы и не имеет права прощения!
-    ''', parse_mode='HTML')
+                        if duration and duration[1] > 365 * 86400:
+                            bot.reply_to(message, "Временный бан может длиться не более 1 года.")
+                            return
+                        ban_kwargs = {}
+                        if duration:
+                            ban_kwargs['until_date'] = message.date + duration[1]
+                        retry_bot_call(
+                            message,
+                            bot.ban_chat_member,
+                            message.chat.id,
+                            target,
+                            **ban_kwargs
+                        )
+                        if duration:
+                            bot.reply_to(
+                                message,
+                                f"Пользователь забанен на {duration[0]}."
+                            )
+                        else:
+                            bot.reply_to(message, "Этот пользователь забанен бессрочно.")
         except Exception as e:
             catch_error(message, e)
 
@@ -1641,13 +1693,13 @@ def echo_all(message):
 Топ все / Топ вся - Топ крутышек за все время в этом чате.
 Кто ты @username / reply - Показывает инфу о пользователе.
 Поженить пару @user1 @user2 - Принудительно зарегистрировать брак (только администраторы).
-Бан/Разбан - Блокировка/разблокировка пользователя
+Бан [срок] / Разбан - Блокировка/разблокировка пользователя (например: бан неделя, бан 3 месяца, бан год; без срока — бессрочно)
 Кик - Изгнание пользователя
-Мут/Размут [2m/2h] - Лишение/выдача права слова пользователю (m - минуты, h - часы)
-Варн [время] / Снять варн - Выдача/Снятие предупреждения пользователю (напр. варн 2h)
+Мут [срок] / Размут - Лишение/выдача права слова пользователю (например: мут 20 минут, мут 3 дня; без срока — бессрочно)
+Варн [срок] / Снять варн - Выдача/снятие предупреждения пользователю (например: варн 3 дня, варн 1 месяц)
 Варны - Просмотр активных предупреждений пользователя
 Лимит варнов [число] - Настройка лимита варнов до бана для этой группы (только админы)
-Время варна [время] - Настройка времени действия варна для этой группы (только админы)
+Время варна [срок] - Настройка времени действия варна для этой группы (например: время варна 1 месяц; только админы)
 Закреп||Пин - Прикрепить сообщение
 Анпин - открепить сообщение
 Рандом a b - Случайный выбор числа в диапазоне a..b

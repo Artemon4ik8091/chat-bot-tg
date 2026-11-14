@@ -4,6 +4,24 @@ import re
 DEFAULT_MAX_WARNS = 3
 DEFAULT_WARN_DURATION = 86400  # 24 hours (1 day) in seconds
 
+_DURATION_UNITS = {
+    's': 1, 'секунда': 1, 'секунды': 1, 'секунду': 1, 'секунд': 1, 'сек': 1, 'с': 1,
+    'm': 60, 'минута': 60, 'минуты': 60, 'минуту': 60, 'минут': 60, 'мин': 60, 'м': 60,
+    'h': 3600, 'час': 3600, 'часа': 3600, 'часов': 3600, 'часу': 3600, 'ч': 3600,
+    'd': 86400, 'день': 86400, 'дня': 86400, 'дней': 86400, 'дн': 86400, 'д': 86400,
+    'w': 7 * 86400, 'неделя': 7 * 86400, 'недели': 7 * 86400,
+    'неделю': 7 * 86400, 'недель': 7 * 86400, 'нед': 7 * 86400,
+    'месяц': 30 * 86400, 'месяца': 30 * 86400, 'месяцев': 30 * 86400,
+    'год': 365 * 86400, 'года': 365 * 86400, 'лет': 365 * 86400, 'году': 365 * 86400,
+}
+_DURATION_UNIT_PATTERN = '|'.join(
+    re.escape(unit) for unit in sorted(_DURATION_UNITS, key=len, reverse=True)
+)
+_DURATION_PART_PATTERN = re.compile(
+    rf'(?:(\d+)\s*)?({_DURATION_UNIT_PATTERN})',
+    flags=re.IGNORECASE
+)
+
 
 def init_warn_tables(cursor):
     """Initializes tables for chat-specific warn settings and timed warns."""
@@ -64,7 +82,7 @@ def format_duration(seconds):
 
 def parse_duration_string(text):
     """
-    Parses a string representing time duration (e.g. '24h', '2d', '30m', 'навсегда', '0').
+    Parses a duration such as '24 часа', '2 дня', '1 неделя' or '30 минут'.
     Returns duration in seconds. 0 means permanent/no expiration. Returns None if invalid.
     """
     if not text:
@@ -73,18 +91,46 @@ def parse_duration_string(text):
     if cleaned in ['0', 'навсегда', 'бессрочно', 'отключить', 'нет', 'бесконечно']:
         return 0
 
-    m = re.match(r'^(\d+)\s*([smhdсмчд]|сек|мин|час|дн|день|дня|дней|часа|часов|минут|минуты)?$', cleaned)
-    if m:
-        val = int(m.group(1))
-        unit = m.group(2) or 's'
-        if unit in ['d', 'д', 'дн', 'день', 'дня', 'дней']:
-            return val * 86400
-        elif unit in ['h', 'ч', 'час', 'часа', 'часов']:
-            return val * 3600
-        elif unit in ['m', 'м', 'мин', 'минут', 'минуты']:
-            return val * 60
-        elif unit in ['s', 'с', 'сек']:
-            return val
+    if cleaned.isdigit():
+        return int(cleaned)
+
+    total_seconds = 0
+    position = 0
+    parsed_part = False
+    while position < len(cleaned):
+        while position < len(cleaned) and cleaned[position].isspace():
+            position += 1
+        if cleaned[position:position + 1] == 'и':
+            position += 1
+            while position < len(cleaned) and cleaned[position].isspace():
+                position += 1
+        match = _DURATION_PART_PATTERN.match(cleaned, position)
+        if not match:
+            return None
+        amount = int(match.group(1)) if match.group(1) else 1
+        unit = match.group(2).lower()
+        total_seconds += amount * _DURATION_UNITS[unit]
+        position = match.end()
+        parsed_part = True
+    return total_seconds if parsed_part else None
+
+
+def find_duration_in_text(text):
+    """Finds the first duration phrase in command arguments, ignoring usernames and reasons."""
+    if not text:
+        return None
+    words = re.sub(r'@[a-zA-Z0-9_]+', '', text).lower().split()
+    for start in range(len(words)):
+        parsed_duration = None
+        for end in range(start + 1, len(words) + 1):
+            candidate = ' '.join(words[start:end])
+            duration = parse_duration_string(candidate)
+            if duration is not None:
+                parsed_duration = duration
+            elif parsed_duration is not None:
+                break
+        if parsed_duration is not None:
+            return parsed_duration
     return None
 
 

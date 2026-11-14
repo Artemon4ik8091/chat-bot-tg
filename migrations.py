@@ -206,6 +206,12 @@ def migration_006_chat_member_first_seen(cursor: sqlite3.Cursor):
     ''')
 
 
+def migration_007_chat_member_retention(cursor: sqlite3.Cursor):
+    """Track temporary departures before purging member statistics."""
+    if not column_exists(cursor, 'chat_members', 'left_at'):
+        cursor.execute('ALTER TABLE chat_members ADD COLUMN left_at TEXT')
+
+
 MIGRATIONS: List[Migration] = [
     Migration(1, "base_schema", migration_001_base_schema),
     Migration(2, "rp_requests", migration_002_rp_requests),
@@ -213,6 +219,7 @@ MIGRATIONS: List[Migration] = [
     Migration(4, "user_data_last_target", migration_004_user_data_last_target),
     Migration(5, "chat_warn_system", migration_005_chat_warn_system),
     Migration(6, "chat_member_first_seen", migration_006_chat_member_first_seen),
+    Migration(7, "chat_member_retention", migration_007_chat_member_retention),
 ]
 
 
