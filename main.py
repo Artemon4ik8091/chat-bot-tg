@@ -968,6 +968,20 @@ def echo_all(message):
         uptime_output = get_uptime()
         bot.reply_to(message, "Выполняю команду uptime:\n" + uptime_output)
 
+    yes_no_match = re.match(
+        r'^барбарис\s+да\s+нет(?:\s+(.*))?$',
+        message.text.strip(),
+        flags=re.IGNORECASE | re.DOTALL
+    ) if message.text else None
+    if yes_no_match:
+        question = (yes_no_match.group(1) or '').strip()
+        if not question:
+            bot.reply_to(message, "Укажи вопрос, например: Барбарис да нет стоит ли сегодня гулять?")
+            return
+
+        bot.reply_to(message, f"Думаю это вероятно на {random.randint(0, 100)}%")
+        return
+
     who_match = re.match(
         r'^барбарис\s+кто(?:\s+(.*))?$',
         message.text.strip(),
@@ -1647,6 +1661,7 @@ def echo_all(message):
 +чат/-чат - Открытие/закрытие чата
 +админ/-админ - Выдача/снятие прав администратора пользователя
 Барбарис, скажи - Повторяет за вами (запятая кст не обязательна, но и с ней оно работает)
+Барбарис да нет {вопрос} - Отвечает вероятностью от 0 до 100%
 Брак (reply) - Предложить брак пользователю.
 Развод - Развестись с пользователем.
 Браки / Список браков - Список всех браков в чате.
