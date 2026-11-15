@@ -1007,11 +1007,15 @@ def get_profile_addition(chat_id, user_id):
         awards = get_user_awards(cursor, chat_id, user_id)
         global_awards = get_global_user_awards(cursor, user_id)
     if awards:
-        formatted_awards = ', '.join(escape_html(award) for award in awards)
-        additions.append(f"\n🏅 Награды: {formatted_awards}")
+        formatted_awards = '\n'.join(
+            f"{index}. {escape_html(award)}"
+            for index, award in enumerate(awards, start=1)
+        )
+        additions.append(f"\n🏅 Награды:\n{formatted_awards}")
     if global_awards:
         formatted_global_awards = '\n'.join(
-            f"* {escape_html(award)}" for award in global_awards
+            f"{index}. <b>{escape_html(award)}</b>"
+            for index, award in enumerate(global_awards, start=1)
         )
         additions.append(f"\n🌟 Глобальные награды:\n{formatted_global_awards}")
     return ''.join(additions)
