@@ -74,6 +74,12 @@ from moderation_utils import (
     revoke_latest_chat_ban,
     set_chat_mute,
 )
+from awards_utils import (
+    add_global_user_award,
+    add_user_award,
+    get_global_user_awards,
+    get_user_awards,
+)
 from migrations import backfill_chat_member_first_seen, run_migrations
 
 ####### CREATE DB IF NOT EXIST ##########
@@ -514,6 +520,26 @@ def can_manage_warn_settings(message):
         return False
     admins = get_admins(message)
     return bool(admins and message.from_user.id in admins)
+
+
+def can_manage_awards(message):
+    user = message.from_user
+    if user is None:
+        return False
+    owner_id = read_db().get('owner_id')
+    if owner_id is not None and str(user.id) == str(owner_id):
+        return True
+    if getattr(message.chat, 'type', None) == 'private':
+        return False
+    admins = retry_bot_call(
+        message,
+        bot.get_chat_administrators,
+        chat_id=message.chat.id
+    )
+    if admins is None:
+        return None
+    return any(admin.user.id == user.id for admin in admins if admin.user)
+
 
 def key_by_value(dictionary, key):
     for i in dictionary:
@@ -971,10 +997,20 @@ def get_all_chats():
 
 def get_profile_addition(chat_id, user_id):
     spouse_id = get_spouse(chat_id, user_id)
+    additions = []
     if spouse_id:
         spouse_name = get_user_link_sync(spouse_id, chat_id, include_user_id=False)
-        return f"\n💍 В браке с {spouse_name}"
-    return ""
+        additions.append(f"\n💍 В браке с {spouse_name}")
+    with db_connection() as cursor:
+        awards = get_user_awards(cursor, chat_id, user_id)
+        global_awards = get_global_user_awards(cursor, user_id)
+    if awards:
+        formatted_awards = ', '.join(escape_html(award) for award in awards)
+        additions.append(f"\n🏅 Награды: {formatted_awards}")
+    if global_awards:
+        formatted_global_awards = ', '.join(escape_html(award) for award in global_awards)
+        additions.append(f"\n🌟 Глобальные награды: {formatted_global_awards}")
+    return ''.join(additions)
 
 @bot.message_handler(content_types=['new_chat_members'])
 def handle_new_chat_members(message):
@@ -1226,6 +1262,100 @@ def echo_all(message):
 
     db = read_db()
     owner_id = db['owner_id']
+
+    global_award_match = re.fullmatch(
+        r'наградитьгл(?:\s+(.*))?',
+        message.text.strip(),
+        flags=re.IGNORECASE | re.DOTALL
+    ) if message.text else None
+    if global_award_match:
+        if (
+            message.from_user is None
+            or owner_id is None
+            or str(message.from_user.id) != str(owner_id)
+        ):
+            bot.reply_to(message, "Команда «наградитьГЛ» доступна только владельцу бота.")
+            return
+        if not message.reply_to_message or not message.reply_to_message.from_user:
+            bot.reply_to(
+                message,
+                "Ответьте командой на сообщение участника: наградитьГЛ {название награды}."
+            )
+            return
+        award_name = (global_award_match.group(1) or '').strip()
+        if not award_name:
+            bot.reply_to(message, "Укажите название награды после команды «наградитьГЛ».")
+            return
+        if len(award_name) > 100:
+            bot.reply_to(message, "Название награды не должно превышать 100 символов.")
+            return
+
+        target = message.reply_to_message.from_user
+        with db_connection() as cursor:
+            added = add_global_user_award(cursor, target.id, award_name)
+        if not added:
+            bot.reply_to(message, "У этого участника уже есть такая глобальная награда.")
+            return
+        target_link = format_user_link(
+            get_nickname(target.id) or target.first_name,
+            target.username,
+            target.id
+        )
+        bot.reply_to(
+            message,
+            f"🌟 {target_link} получает глобальную награду «{escape_html(award_name)}»!",
+            parse_mode='HTML',
+            disable_web_page_preview=True
+        )
+        return
+
+    award_match = re.fullmatch(
+        r'наградить(?:\s+(.*))?',
+        message.text.strip(),
+        flags=re.IGNORECASE | re.DOTALL
+    ) if message.text else None
+    if award_match:
+        if getattr(message.chat, 'type', None) == 'private':
+            bot.reply_to(message, "Команда «наградить» работает только в группе.")
+            return
+        permission = can_manage_awards(message)
+        if permission is None:
+            return
+        if not permission:
+            bot.reply_to(message, "Команда доступна только администраторам группы.")
+            return
+        if not message.reply_to_message or not message.reply_to_message.from_user:
+            bot.reply_to(
+                message,
+                "Ответьте командой на сообщение участника: наградить {название награды}."
+            )
+            return
+        award_name = (award_match.group(1) or '').strip()
+        if not award_name:
+            bot.reply_to(message, "Укажите название награды после команды «наградить».")
+            return
+        if len(award_name) > 100:
+            bot.reply_to(message, "Название награды не должно превышать 100 символов.")
+            return
+
+        target = message.reply_to_message.from_user
+        with db_connection() as cursor:
+            added = add_user_award(cursor, message.chat.id, target.id, award_name)
+        if not added:
+            bot.reply_to(message, "У этого участника уже есть такая награда.")
+            return
+        target_link = format_user_link(
+            get_nickname(target.id) or target.first_name,
+            target.username,
+            target.id
+        )
+        bot.reply_to(
+            message,
+            f"🏅 {target_link} получает награду «{escape_html(award_name)}»!",
+            parse_mode='HTML',
+            disable_web_page_preview=True
+        )
+        return
 
     if message.text == 'bot?':
         username = escape_html(message.from_user.first_name)
@@ -1992,6 +2122,8 @@ def echo_all(message):
             help_text += """<blockquote expandable><b>Основные команды бота</b>
 +ник {ник} / -ник - Установить/сбросить кастомный ник (отображается в топе и РП)
 +описание {описание} / -описание - Установить/сбросить описание (отображается в кто я/кто ты)
+            Наградить {название награды} - Выдать награду участнику ответом на его сообщение (только администраторы и владелец)
+            НаградитьГЛ {название награды} - Выдать глобальную награду (только владелец бота)
 Какая нагрузка - выполняет команду uptime и отправляет её вывод
 Топ день / Топ дня - Топ крутышек за день в этом чате.
 Топ неделя / Топ недели - Топ крутышек за неделю в этом чате.

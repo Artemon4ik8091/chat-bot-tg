@@ -251,6 +251,33 @@ def migration_009_revoke_chat_bans(cursor: sqlite3.Cursor):
         cursor.execute('ALTER TABLE chat_ban_history ADD COLUMN revoked_at TEXT')
 
 
+def migration_010_chat_user_awards(cursor: sqlite3.Cursor):
+    """Store awards assigned to users in each chat."""
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS chat_user_awards (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            chat_id TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            award TEXT NOT NULL,
+            award_key TEXT NOT NULL,
+            UNIQUE (chat_id, user_id, award_key)
+        )
+    ''')
+
+
+def migration_011_global_user_awards(cursor: sqlite3.Cursor):
+    """Store owner-assigned awards that apply in every chat."""
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS global_user_awards (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            award TEXT NOT NULL,
+            award_key TEXT NOT NULL,
+            UNIQUE (user_id, award_key)
+        )
+    ''')
+
+
 MIGRATIONS: List[Migration] = [
     Migration(1, "base_schema", migration_001_base_schema),
     Migration(2, "rp_requests", migration_002_rp_requests),
@@ -261,6 +288,8 @@ MIGRATIONS: List[Migration] = [
     Migration(7, "chat_member_retention", migration_007_chat_member_retention),
     Migration(8, "moderation_history", migration_008_moderation_history),
     Migration(9, "revoke_chat_bans", migration_009_revoke_chat_bans),
+    Migration(10, "chat_user_awards", migration_010_chat_user_awards),
+    Migration(11, "global_user_awards", migration_011_global_user_awards),
 ]
 
 
