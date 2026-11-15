@@ -62,7 +62,17 @@ from warn_utils import (
 from chat_member_utils import (
     mark_chat_member_left,
     mark_chat_member_returned,
-    purge_expired_chat_members,
+)
+from moderation_utils import (
+    clear_chat_mute,
+    get_active_chat_ban,
+    get_chat_ban_history,
+    get_chat_mute,
+    get_latest_chat_ban,
+    has_recent_matching_ban,
+    record_ban,
+    revoke_latest_chat_ban,
+    set_chat_mute,
 )
 from migrations import backfill_chat_member_first_seen, run_migrations
 
@@ -102,8 +112,6 @@ def backfill_missing_chat_member_first_seen():
 # Initialize SQLite database via migrations
 def init_sqlite_db():
     applied = run_migrations('bot_data.db', make_backup=True)
-    with db_connection() as cursor:
-        purge_expired_chat_members(cursor)
     backfill_missing_chat_member_first_seen()
     if applied:
         print(f'DEBUG: SQLite database migrated ({len(applied)} migrations applied).')
@@ -117,7 +125,6 @@ def warn_cleanup_worker():
         try:
             with db_connection() as cursor:
                 cleanup_expired_warns(cursor)
-                purge_expired_chat_members(cursor)
         except Exception as e:
             print(f"DEBUG: Error in warn cleanup: {e}")
         time.sleep(60)
@@ -658,6 +665,135 @@ def get_all_time_stats(chat_id):
         all_time_stats = {row[0]: row[1] for row in cursor.fetchall()}
     return all_time_stats
 
+def get_moderation_status_text(chat_id, user_id, member):
+    with db_connection() as cursor:
+        warn_count = get_user_warn_count(cursor, chat_id, user_id)
+        mute = get_chat_mute(cursor, chat_id, user_id)
+        ban = get_latest_chat_ban(cursor, chat_id, user_id)
+
+    lines = []
+    if warn_count:
+        lines.append(f"⚠️ Активных варнов: <b>{warn_count}</b>")
+
+    now = datetime.now()
+    now_timestamp = int(now.timestamp())
+    until_date = getattr(member, 'until_date', None)
+    try:
+        until_timestamp = int(until_date) if until_date else None
+    except (TypeError, ValueError):
+        until_timestamp = None
+
+    if member.status == 'restricted' and not getattr(member, 'can_send_messages', True):
+        mute_until = (
+            until_timestamp
+            if until_timestamp is not None
+            else (mute['until_date'] if mute else None)
+        )
+        if mute_until and mute_until > now_timestamp:
+            remaining = format_duration(mute_until - now_timestamp)
+            if mute:
+                try:
+                    started = datetime.strptime(mute['started_at'], '%Y-%m-%d %H:%M:%S')
+                    total = format_duration(mute_until - int(started.timestamp()))
+                    lines.append(
+                        f"🔇 Мут: на <b>{total}</b>; до снятия ограничений "
+                        f"<b>{remaining}</b> (до {datetime.fromtimestamp(mute_until).strftime('%d.%m.%Y %H:%M')})"
+                    )
+                except ValueError:
+                    lines.append(f"🔇 Мут: осталось <b>{remaining}</b>")
+            else:
+                lines.append(
+                    f"🔇 Мут: осталось <b>{remaining}</b> "
+                    f"(до {datetime.fromtimestamp(mute_until).strftime('%d.%m.%Y %H:%M')})"
+                )
+        elif (
+            not mute_until
+            or (mute and mute['until_date'] is None)
+        ):
+            lines.append("🔇 Мут: <b>бессрочно</b>")
+
+    if member.status == 'kicked':
+        ban_until = until_timestamp
+        if ban_until and ban_until > now_timestamp:
+            remaining = format_duration(ban_until - now_timestamp)
+            matching_ban = ban and ban['until_date'] == ban_until
+            ban_kind = (
+                "Бан за лимит варнов"
+                if matching_ban and ban['source'] == 'warn_limit'
+                else "Бан"
+            )
+            if matching_ban:
+                try:
+                    started = datetime.strptime(ban['created_at'], '%Y-%m-%d %H:%M:%S')
+                    total = format_duration(ban_until - int(started.timestamp()))
+                    lines.append(
+                        f"⛔ {ban_kind}: на <b>{total}</b>; до снятия ограничений "
+                        f"<b>{remaining}</b> (до {datetime.fromtimestamp(ban_until).strftime('%d.%m.%Y %H:%M')})"
+                    )
+                except ValueError:
+                    lines.append(f"⛔ {ban_kind}: осталось <b>{remaining}</b>")
+            else:
+                lines.append(
+                    f"⛔ Бан: осталось <b>{remaining}</b> "
+                    f"(до {datetime.fromtimestamp(ban_until).strftime('%d.%m.%Y %H:%M')})"
+                )
+        elif not ban_until or (ban and ban['until_date'] is None):
+            matching_ban = ban and ban['until_date'] is None
+            ban_kind = (
+                "Бан за лимит варнов"
+                if matching_ban and ban['source'] == 'warn_limit'
+                else "Бан"
+            )
+            lines.append(f"⛔ {ban_kind}: <b>бессрочно</b>")
+
+    return ("\n" + "\n".join(lines)) if lines else ""
+
+def format_ban_history(chat_id, bans):
+    if not bans:
+        return ["В этом чате ещё не зарегистрировано банов."]
+
+    messages = []
+    current_message = "<b>Баны за всё время:</b>\n"
+    for ban in bans:
+        user_link = get_user_link_sync(int(ban['user_id']), chat_id)
+        if ban['until_date']:
+            try:
+                start_timestamp = int(datetime.strptime(
+                    ban['created_at'],
+                    '%Y-%m-%d %H:%M:%S'
+                ).timestamp())
+                duration = format_duration(ban['until_date'] - start_timestamp)
+            except ValueError:
+                duration = "срок неизвестен"
+            term = f"на {duration}"
+        else:
+            term = "бессрочно"
+
+        if ban['source'] == 'warn_limit':
+            reason = f"за лимит варнов [{ban['warn_count']}/{ban['max_warns']}]"
+            if ban['last_warn_created_at']:
+                reason += f"; последний варн: {ban['last_warn_created_at']}"
+                if ban['last_warn_expires_at']:
+                    reason += f" (истекал {ban['last_warn_expires_at']})"
+            if ban['last_warn_reason']:
+                reason += f"; причина варна: {escape_html(ban['last_warn_reason'])}"
+        else:
+            reason = "по решению администратора"
+
+        entry = (
+            f"{user_link} — {reason}; {term}; "
+            f"выдан {escape_html(ban['created_at'])}\n"
+        )
+        if len(current_message) + len(entry) > 3500:
+            messages.append(current_message)
+            current_message = ""
+        current_message += entry
+
+    if current_message:
+        messages.append(current_message)
+    return messages
+
+
 def warn_user(message, user_id, duration_seconds=None):
     chat_id = message.chat.id
     admin_id = message.from_user.id if message.from_user else None
@@ -685,7 +821,34 @@ def warn_user(message, user_id, duration_seconds=None):
             parse_mode='HTML'
         )
         try:
-            bot.ban_chat_member(chat_id, user_id)
+            ban_applied = bot.ban_chat_member(chat_id, user_id)
+            if ban_applied:
+                with db_connection() as cursor:
+                    cursor.execute(
+                        '''SELECT created_at, expires_at, reason FROM chat_warns
+                           WHERE chat_id = ? AND user_id = ?
+                           ORDER BY id DESC LIMIT 1''',
+                        (str(chat_id), str(user_id))
+                    )
+                    warn_row = cursor.fetchone()
+                    last_warn = None
+                    if warn_row:
+                        last_warn = {
+                            'created_at': warn_row[0],
+                            'expires_at': warn_row[1],
+                            'reason': warn_row[2],
+                        }
+                    record_ban(
+                        cursor,
+                        chat_id,
+                        user_id,
+                        admin_id,
+                        'warn_limit',
+                        datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                        warn_count=warn_count,
+                        max_warns=max_warns,
+                        last_warn=last_warn,
+                    )
         except Exception as e:
             catch_error(message, e)
 
@@ -819,11 +982,47 @@ def handle_new_chat_members(message):
     owner_id = db['owner_id']
     bot_id = bot.get_me().id
     seen_at = datetime.fromtimestamp(message.date).strftime('%Y-%m-%d %H:%M:%S')
-    with db_connection() as cursor:
-        purge_expired_chat_members(cursor)
-        for user in message.new_chat_members:
-            mark_chat_member_returned(cursor, message.chat.id, user.id, seen_at)
     for user in message.new_chat_members:
+        with db_connection() as cursor:
+            active_ban = get_active_chat_ban(cursor, message.chat.id, user.id)
+        if active_ban:
+            ban_kwargs = {}
+            until_date = active_ban['until_date']
+            if until_date is not None:
+                ban_kwargs['until_date'] = until_date
+            try:
+                if bot.ban_chat_member(message.chat.id, user.id, **ban_kwargs):
+                    left_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    with db_connection() as cursor:
+                        mark_chat_member_left(cursor, message.chat.id, user.id, left_at)
+                    if until_date is None:
+                        ban_message = (
+                            f"Увы, у {escape_html(user.first_name)} действует бессрочный бан. "
+                            "Снять ограничения можно командой «разбан»."
+                        )
+                    else:
+                        ban_end = datetime.fromtimestamp(until_date).strftime('%d.%m.%Y %H:%M')
+                        ban_message = (
+                            f"Увы, бан для {escape_html(user.first_name)} ещё не закончился "
+                            f"(до {ban_end}). Снять ограничения можно командой «разбан»."
+                        )
+                    bot.send_message(message.chat.id, ban_message, parse_mode='HTML')
+                else:
+                    logging.error(
+                        "Could not reapply active ban to joining member %s in chat %s",
+                        user.id,
+                        message.chat.id
+                    )
+            except Exception:
+                logging.exception(
+                    "Failed to enforce active ban for joining member %s in chat %s",
+                    user.id,
+                    message.chat.id
+                )
+            continue
+
+        with db_connection() as cursor:
+            mark_chat_member_returned(cursor, message.chat.id, user.id, seen_at)
         if user.id == bot_id:
             chat_title = bot.get_chat(message.chat.id).title
             add_chat_to_db(message.chat.id, chat_title)
@@ -836,12 +1035,42 @@ def handle_left_chat_member(message):
     left_at = datetime.fromtimestamp(message.date).strftime('%Y-%m-%d %H:%M:%S')
     with db_connection() as cursor:
         newly_left = mark_chat_member_left(cursor, message.chat.id, user.id, left_at)
+
+    try:
+        member = bot.get_chat_member(message.chat.id, user.id)
+        if member.status == 'kicked':
+            until_date = getattr(member, 'until_date', None)
+            until_date = int(until_date) if until_date else None
+            with db_connection() as cursor:
+                if not has_recent_matching_ban(
+                    cursor,
+                    message.chat.id,
+                    user.id,
+                    until_date,
+                    left_at
+                ):
+                    record_ban(
+                        cursor,
+                        message.chat.id,
+                        user.id,
+                        (
+                            message.from_user.id
+                            if message.from_user and message.from_user.id != user.id
+                            else None
+                        ),
+                        'admin',
+                        left_at,
+                        until_date=until_date
+                    )
+    except Exception as e:
+        logging.warning("Could not check whether departing member %s was banned: %s", user.id, e)
+
     if newly_left:
         try:
             bot.send_message(
                 message.chat.id,
-                f"Статистика {escape_html(user.first_name)} временно скрыта и будет очищена через 7 дней. "
-                "Если участник вернётся в течение недели, статистика восстановится.",
+                f"Статистика {escape_html(user.first_name)} скрыта. "
+                "Если участник вернётся в чат, она восстановится.",
                 parse_mode='HTML'
             )
         except Exception as e:
@@ -1145,9 +1374,11 @@ def echo_all(message):
         status_text = "\n👤 Просто пользователь" if not owner_text and not beta_text else ""
         description_text = f"\n📝 {get_description(user_id)}" if get_description(user_id) else ""
         marriage_text = get_profile_addition(int(chat_id), user_id)
+        moderation_text = get_moderation_status_text(chat_id, user_id, member)
         first_seen_at = get_chat_member_first_seen(chat_id, user_id)
         reply_text = (
-            f"Ты <b>{username}</b>{owner_text}{beta_text}{status_text}{description_text}{marriage_text}\n\n"
+            f"Ты <b>{username}</b>{owner_text}{beta_text}{status_text}{description_text}{marriage_text}"
+            f"{moderation_text}\n\n"
             f"Впервые появился в чате: {first_seen_at}\n"
             f"Последний твой актив:\n{last_active_time}\n"
             f"Краткая стата (д|н|м|вся):\n{daily_count}|{weekly_count}|{monthly_count}|{all_time_count}"
@@ -1228,9 +1459,11 @@ def echo_all(message):
                 status_text = "\n👤 Просто пользователь" if not owner_text and not beta_text else ""
                 description_text = f"\n📝 {get_description(target_user_id)}" if get_description(target_user_id) else ""
                 marriage_text = get_profile_addition(int(chat_id), target_user_id)
+                moderation_text = get_moderation_status_text(chat_id, target_user_id, member)
                 first_seen_at = get_chat_member_first_seen(chat_id, target_user_id)
                 reply_text = (
-                    f"Это <b>{target_user_name}</b>{owner_text}{beta_text}{status_text}{description_text}{marriage_text}\n\n"
+                    f"Это <b>{target_user_name}</b>{owner_text}{beta_text}{status_text}{description_text}{marriage_text}"
+                    f"{moderation_text}\n\n"
                     f"Впервые появился в чате: {first_seen_at}\n"
                     f"Последний актив:\n{last_active_time}\n"
                     f"Краткая стата (д|н|м|вся):\n{daily_count}|{weekly_count}|{monthly_count}|{all_time_count}"
@@ -1334,6 +1567,21 @@ def echo_all(message):
                         settings = get_chat_warn_settings(cursor, message.chat.id)
                     dur_str = format_duration(settings['warn_duration'])
                     bot.reply_to(message, f"⏳ Время действия предупреждения в этом чате: <b>{dur_str}</b>.", parse_mode='HTML')
+            except Exception as e:
+                catch_error(message, e)
+
+        if upper_text in ['БАНЫ', 'СПИСОК БАНОВ']:
+            try:
+                with db_connection() as cursor:
+                    bans = get_chat_ban_history(cursor, message.chat.id)
+                for text in format_ban_history(message.chat.id, bans):
+                    bot.send_message(
+                        message.chat.id,
+                        text,
+                        parse_mode='HTML',
+                        disable_web_page_preview=True
+                    )
+                return
             except Exception as e:
                 catch_error(message, e)
 
@@ -1443,11 +1691,34 @@ def echo_all(message):
                         bot.reply_to(message, answer, parse_mode='HTML')
                     else:
                         if time:
-                            retry_bot_call(message, bot.restrict_chat_member, message.chat.id, target, until_date=message.date + time[1])
+                            mute_until = message.date + time[1]
+                            mute_result = retry_bot_call(
+                                message,
+                                bot.restrict_chat_member,
+                                message.chat.id,
+                                target,
+                                until_date=mute_until
+                            )
                             answer = f'Я заклеил ему рот на {time[0]}. Маловато как по мне, ну ладно.'
                         else:
-                            retry_bot_call(message, bot.restrict_chat_member, message.chat.id, target, until_date=message.date)
+                            mute_until = None
+                            mute_result = retry_bot_call(
+                                message,
+                                bot.restrict_chat_member,
+                                message.chat.id,
+                                target,
+                                until_date=message.date
+                            )
                             answer = f'Я заклеил ему рот.'
+                        if mute_result:
+                            with db_connection() as cursor:
+                                set_chat_mute(
+                                    cursor,
+                                    message.chat.id,
+                                    target,
+                                    datetime.fromtimestamp(message.date).strftime('%Y-%m-%d %H:%M:%S'),
+                                    mute_until
+                                )
                         try:
                             bot.reply_to(message, answer, parse_mode='HTML')
                         except:
@@ -1460,9 +1731,20 @@ def echo_all(message):
             if have_rights(message):
                 target = get_target(message)
                 if target:
-                    retry_bot_call(message, bot.restrict_chat_member, message.chat.id, target, can_send_messages=True,
-                                             can_send_other_messages=True, can_send_polls=True,
-                                             can_add_web_page_previews=True, until_date=message.date)
+                    unmute_result = retry_bot_call(
+                        message,
+                        bot.restrict_chat_member,
+                        message.chat.id,
+                        target,
+                        can_send_messages=True,
+                        can_send_other_messages=True,
+                        can_send_polls=True,
+                        can_add_web_page_previews=True,
+                        until_date=message.date
+                    )
+                    if unmute_result:
+                        with db_connection() as cursor:
+                            clear_chat_mute(cursor, message.chat.id, target)
                     bot.reply_to(message, f'''Ладно, так и быть, пусть он говорит.
     ''', parse_mode='HTML')
                 else:
@@ -1517,13 +1799,24 @@ def echo_all(message):
                         ban_kwargs = {}
                         if duration:
                             ban_kwargs['until_date'] = message.date + duration[1]
-                        retry_bot_call(
+                        ban_result = retry_bot_call(
                             message,
                             bot.ban_chat_member,
                             message.chat.id,
                             target,
                             **ban_kwargs
                         )
+                        if ban_result:
+                            with db_connection() as cursor:
+                                record_ban(
+                                    cursor,
+                                    message.chat.id,
+                                    target,
+                                    message.from_user.id if message.from_user else None,
+                                    'manual',
+                                    datetime.fromtimestamp(message.date).strftime('%Y-%m-%d %H:%M:%S'),
+                                    until_date=ban_kwargs.get('until_date')
+                                )
                         if duration:
                             bot.reply_to(
                                 message,
@@ -1539,8 +1832,21 @@ def echo_all(message):
             if have_rights(message):
                 target = get_target(message)
                 if target:
-                    retry_bot_call(message, bot.unban_chat_member, message.chat.id, target)
-                    bot.reply_to(message, f'''Ладно, может право на прощение он и имеет.. Но только единожды! Наверное..
+                    unban_result = retry_bot_call(
+                        message,
+                        bot.unban_chat_member,
+                        message.chat.id,
+                        target
+                    )
+                    if unban_result:
+                        with db_connection() as cursor:
+                            revoke_latest_chat_ban(
+                                cursor,
+                                message.chat.id,
+                                target,
+                                datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                            )
+                        bot.reply_to(message, f'''Ладно, может право на прощение он и имеет.. Но только единожды! Наверное..
     ''', parse_mode='HTML')
                 else:
                     catch_error(message, None, 'no_user')
@@ -1698,6 +2004,7 @@ def echo_all(message):
 Мут [срок] / Размут - Лишение/выдача права слова пользователю (например: мут 20 минут, мут 3 дня; без срока — бессрочно)
 Варн [срок] / Снять варн - Выдача/снятие предупреждения пользователю (например: варн 3 дня, варн 1 месяц)
 Варны - Просмотр активных предупреждений пользователя
+Баны - История банов в этом чате за всё время
 Лимит варнов [число] - Настройка лимита варнов до бана для этой группы (только админы)
 Время варна [срок] - Настройка времени действия варна для этой группы (например: время варна 1 месяц; только админы)
 Закреп||Пин - Прикрепить сообщение

@@ -37,7 +37,8 @@ class MigrationTests(unittest.TestCase):
         expected_tables = [
             'users', 'low_admins', 'warns', 'chats', 'user_profiles',
             'user_data', 'rp_requests', 'marriages', 'marriage_requests',
-            'chat_warn_settings', 'chat_warns', 'chat_members', 'schema_migrations'
+            'chat_warn_settings', 'chat_warns', 'chat_members',
+            'chat_ban_history', 'chat_mutes', 'schema_migrations'
         ]
         for tbl in expected_tables:
             self.assertTrue(table_exists(cursor, tbl), f"Table {tbl} should exist")
@@ -47,6 +48,8 @@ class MigrationTests(unittest.TestCase):
         self.assertTrue(column_exists(cursor, 'user_data', 'last_mentioned_target'))
         self.assertTrue(column_exists(cursor, 'chat_members', 'first_seen_at'))
         self.assertTrue(column_exists(cursor, 'chat_members', 'left_at'))
+        self.assertTrue(column_exists(cursor, 'chat_ban_history', 'last_warn_created_at'))
+        self.assertTrue(column_exists(cursor, 'chat_ban_history', 'revoked_at'))
         conn.close()
 
     def test_idempotent_runs(self):

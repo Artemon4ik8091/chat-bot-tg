@@ -207,9 +207,48 @@ def migration_006_chat_member_first_seen(cursor: sqlite3.Cursor):
 
 
 def migration_007_chat_member_retention(cursor: sqlite3.Cursor):
-    """Track temporary departures before purging member statistics."""
+    """Track departures so member statistics can be hidden."""
     if not column_exists(cursor, 'chat_members', 'left_at'):
         cursor.execute('ALTER TABLE chat_members ADD COLUMN left_at TEXT')
+
+
+def migration_008_moderation_history(cursor: sqlite3.Cursor):
+    """Persist ban history and the current mute set by the bot."""
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS chat_ban_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            chat_id TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            admin_id INTEGER,
+            source TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            until_date INTEGER,
+            warn_count INTEGER,
+            max_warns INTEGER,
+            last_warn_created_at TEXT,
+            last_warn_expires_at TEXT,
+            last_warn_reason TEXT
+        )
+    ''')
+    cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_chat_ban_history_chat
+        ON chat_ban_history (chat_id, created_at)
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS chat_mutes (
+            chat_id TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            started_at TEXT NOT NULL,
+            until_date INTEGER,
+            PRIMARY KEY (chat_id, user_id)
+        )
+    ''')
+
+
+def migration_009_revoke_chat_bans(cursor: sqlite3.Cursor):
+    """Track manual unbans without removing ban history."""
+    if not column_exists(cursor, 'chat_ban_history', 'revoked_at'):
+        cursor.execute('ALTER TABLE chat_ban_history ADD COLUMN revoked_at TEXT')
 
 
 MIGRATIONS: List[Migration] = [
@@ -220,6 +259,8 @@ MIGRATIONS: List[Migration] = [
     Migration(5, "chat_warn_system", migration_005_chat_warn_system),
     Migration(6, "chat_member_first_seen", migration_006_chat_member_first_seen),
     Migration(7, "chat_member_retention", migration_007_chat_member_retention),
+    Migration(8, "moderation_history", migration_008_moderation_history),
+    Migration(9, "revoke_chat_bans", migration_009_revoke_chat_bans),
 ]
 
 
