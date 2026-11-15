@@ -79,6 +79,8 @@ from awards_utils import (
     add_user_award,
     get_global_user_awards,
     get_user_awards,
+    remove_global_user_award,
+    remove_user_award,
 )
 from migrations import backfill_chat_member_first_seen, run_migrations
 
@@ -1008,8 +1010,10 @@ def get_profile_addition(chat_id, user_id):
         formatted_awards = ', '.join(escape_html(award) for award in awards)
         additions.append(f"\n🏅 Награды: {formatted_awards}")
     if global_awards:
-        formatted_global_awards = ', '.join(escape_html(award) for award in global_awards)
-        additions.append(f"\n🌟 Глобальные награды: {formatted_global_awards}")
+        formatted_global_awards = '\n'.join(
+            f"* {escape_html(award)}" for award in global_awards
+        )
+        additions.append(f"\n🌟 Глобальные награды:\n{formatted_global_awards}")
     return ''.join(additions)
 
 @bot.message_handler(content_types=['new_chat_members'])
@@ -1263,6 +1267,80 @@ def echo_all(message):
     db = read_db()
     owner_id = db['owner_id']
 
+    global_remove_match = re.fullmatch(
+        r'снять\s+наградугл(?:\s+(.*))?',
+        message.text.strip(),
+        flags=re.IGNORECASE | re.DOTALL
+    ) if message.text else None
+    if global_remove_match:
+        if (
+            message.from_user is None
+            or owner_id is None
+            or str(message.from_user.id) != str(owner_id)
+        ):
+            bot.reply_to(message, "Команда «снять наградуГЛ» доступна только владельцу бота.")
+            return
+        if not message.reply_to_message or not message.reply_to_message.from_user:
+            bot.reply_to(
+                message,
+                "Ответьте командой на сообщение участника: снять наградуГЛ {название награды}."
+            )
+            return
+        award_name = (global_remove_match.group(1) or '').strip()
+        if not award_name:
+            bot.reply_to(message, "Укажите название глобальной награды.")
+            return
+        if len(award_name) > 100:
+            bot.reply_to(message, "Название награды не должно превышать 100 символов.")
+            return
+
+        target = message.reply_to_message.from_user
+        with db_connection() as cursor:
+            removed = remove_global_user_award(cursor, target.id, award_name)
+        if not removed:
+            bot.reply_to(message, "У участника нет такой глобальной награды.")
+            return
+        bot.reply_to(message, f"Глобальная награда «{escape_html(award_name)}» снята.")
+        return
+
+    remove_match = re.fullmatch(
+        r'снять\s+награду(?:\s+(.*))?',
+        message.text.strip(),
+        flags=re.IGNORECASE | re.DOTALL
+    ) if message.text else None
+    if remove_match:
+        if getattr(message.chat, 'type', None) == 'private':
+            bot.reply_to(message, "Команда «снять награду» работает только в группе.")
+            return
+        permission = can_manage_awards(message)
+        if permission is None:
+            return
+        if not permission:
+            bot.reply_to(message, "Команда доступна только администраторам группы и владельцу бота.")
+            return
+        if not message.reply_to_message or not message.reply_to_message.from_user:
+            bot.reply_to(
+                message,
+                "Ответьте командой на сообщение участника: снять награду {название награды}."
+            )
+            return
+        award_name = (remove_match.group(1) or '').strip()
+        if not award_name:
+            bot.reply_to(message, "Укажите название награды.")
+            return
+        if len(award_name) > 100:
+            bot.reply_to(message, "Название награды не должно превышать 100 символов.")
+            return
+
+        target = message.reply_to_message.from_user
+        with db_connection() as cursor:
+            removed = remove_user_award(cursor, message.chat.id, target.id, award_name)
+        if not removed:
+            bot.reply_to(message, "У участника нет такой награды в этом чате.")
+            return
+        bot.reply_to(message, f"Награда «{escape_html(award_name)}» снята.")
+        return
+
     global_award_match = re.fullmatch(
         r'наградитьгл(?:\s+(.*))?',
         message.text.strip(),
@@ -1303,7 +1381,7 @@ def echo_all(message):
         )
         bot.reply_to(
             message,
-            f"🌟 {target_link} получает глобальную награду «{escape_html(award_name)}»!",
+            f"🌟 {target_link} получает ГЛОБАЛЬНУЮ награду «{escape_html(award_name)}»!!",
             parse_mode='HTML',
             disable_web_page_preview=True
         )
@@ -1322,7 +1400,7 @@ def echo_all(message):
         if permission is None:
             return
         if not permission:
-            bot.reply_to(message, "Команда доступна только администраторам группы.")
+            bot.reply_to(message, "Команда доступна только администраторам группы и владельцу бота.")
             return
         if not message.reply_to_message or not message.reply_to_message.from_user:
             bot.reply_to(
@@ -2124,6 +2202,8 @@ def echo_all(message):
 +описание {описание} / -описание - Установить/сбросить описание (отображается в кто я/кто ты)
             Наградить {название награды} - Выдать награду участнику ответом на его сообщение (только администраторы и владелец)
             НаградитьГЛ {название награды} - Выдать глобальную награду (только владелец бота)
+            Снять награду {название} - Снять локальную награду участника (только администраторы и владелец)
+            Снять наградуГЛ {название} - Снять глобальную награду участника (только владелец бота)
 Какая нагрузка - выполняет команду uptime и отправляет её вывод
 Топ день / Топ дня - Топ крутышек за день в этом чате.
 Топ неделя / Топ недели - Топ крутышек за неделю в этом чате.

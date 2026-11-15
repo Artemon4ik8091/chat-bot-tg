@@ -10,6 +10,8 @@ from awards_utils import (
     add_user_award,
     get_global_user_awards,
     get_user_awards,
+    remove_global_user_award,
+    remove_user_award,
 )
 
 
@@ -65,6 +67,19 @@ class AwardsUtilsTests(unittest.TestCase):
         self.assertFalse(add_global_user_award(self.cursor, 42, ' звезда чата '))
         self.assertEqual(get_global_user_awards(self.cursor, 42), ['Звезда чата'])
         self.assertEqual(get_user_awards(self.cursor, -1001, 42), [])
+
+    def test_removing_local_and_global_awards_is_scoped(self):
+        add_user_award(self.cursor, -1001, 42, 'Звезда')
+        add_user_award(self.cursor, -1002, 42, 'Звезда')
+        add_global_user_award(self.cursor, 42, 'Звезда')
+
+        self.assertTrue(remove_user_award(self.cursor, -1001, 42, ' звезда '))
+        self.assertFalse(remove_user_award(self.cursor, -1001, 42, 'Звезда'))
+        self.assertEqual(get_user_awards(self.cursor, -1001, 42), [])
+        self.assertEqual(get_user_awards(self.cursor, -1002, 42), ['Звезда'])
+        self.assertEqual(get_global_user_awards(self.cursor, 42), ['Звезда'])
+        self.assertTrue(remove_global_user_award(self.cursor, 42, 'звезда'))
+        self.assertEqual(get_global_user_awards(self.cursor, 42), [])
 
 
 if __name__ == '__main__':

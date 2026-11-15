@@ -44,6 +44,35 @@ def add_global_user_award(
     return cursor.rowcount > 0
 
 
+def remove_user_award(
+    cursor: sqlite3.Cursor,
+    chat_id: Union[int, str],
+    user_id: Union[int, str],
+    award: str
+) -> bool:
+    normalized_award = _normalize_award(award)
+    cursor.execute(
+        '''DELETE FROM chat_user_awards
+           WHERE chat_id = ? AND user_id = ? AND award_key = ?''',
+        (str(chat_id), str(user_id), normalized_award.casefold())
+    )
+    return cursor.rowcount > 0
+
+
+def remove_global_user_award(
+    cursor: sqlite3.Cursor,
+    user_id: Union[int, str],
+    award: str
+) -> bool:
+    normalized_award = _normalize_award(award)
+    cursor.execute(
+        '''DELETE FROM global_user_awards
+           WHERE user_id = ? AND award_key = ?''',
+        (str(user_id), normalized_award.casefold())
+    )
+    return cursor.rowcount > 0
+
+
 def get_user_awards(
     cursor: sqlite3.Cursor,
     chat_id: Union[int, str],
