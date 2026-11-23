@@ -723,6 +723,14 @@ def get_all_time_stats(chat_id):
         all_time_stats = {row[0]: row[1] for row in cursor.fetchall()}
     return all_time_stats
 
+def get_chat_role_status_text(member):
+    status = getattr(member, 'status', None)
+    if status == 'creator':
+        return "\n👑 Владелец чата"
+    if status == 'administrator':
+        return "\n🛡 Администратор группы"
+    return ""
+
 def get_moderation_status_text(chat_id, user_id, member):
     with db_connection() as cursor:
         warn_count = get_user_warn_count(cursor, chat_id, user_id)
@@ -1491,6 +1499,50 @@ def echo_all(message):
         bot.reply_to(message, f"Думаю это вероятно на {random.randint(0, 100)}%")
         return
 
+    if message.text.upper() in ('КТО АДМИН', 'КТО АДМИНЫ', 'СПИСОК АДМИНОВ'):
+        try:
+            if getattr(message.chat, 'type', None) not in ('group', 'supergroup'):
+                bot.reply_to(message, "Эту команду можно использовать только в группе.")
+                return
+
+            admins = retry_bot_call(
+                message,
+                bot.get_chat_administrators,
+                chat_id=message.chat.id
+            )
+            if admins is None:
+                return
+
+            owner = next((admin for admin in admins if admin.status == 'creator'), None)
+            administrators = [
+                admin for admin in admins
+                if admin.status == 'administrator' and admin.user and not admin.user.is_bot
+            ]
+
+            lines = []
+            if owner and owner.user:
+                owner_link = get_user_link_sync(owner.user.id, message.chat.id)
+                lines.append(f"👑 Владелец чата: {owner_link}")
+
+            if administrators:
+                lines.append("🛡 Администраторы:")
+                for index, admin in enumerate(administrators, 1):
+                    admin_link = get_user_link_sync(admin.user.id, message.chat.id)
+                    lines.append(f"{index}. {admin_link}")
+
+            if not lines:
+                bot.reply_to(message, "Список администраторов чата пуст.")
+            else:
+                bot.reply_to(
+                    message,
+                    "\n".join(lines),
+                    parse_mode='HTML',
+                    disable_web_page_preview=True
+                )
+        except Exception as e:
+            catch_error(message, e)
+        return
+
     who_match = re.match(
         r'^барбарис\s+кто(?:\s+(.*))?$',
         message.text.strip(),
@@ -1612,14 +1664,14 @@ def echo_all(message):
             last_active_time = format_time_ago(result[0]) if result and result[0] else "Нет данных"
         owner_text = "\n🌟 Владелец бота" if int(user_id) == owner_id else ""
         beta_text = "\n💠 Бета-тестер бота" if int(user_id) in beta_testers else ""
-        # Добавляем статус "Просто пользователь", если пользователь не владелец и не бета-тестер
-        status_text = "\n👤 Просто пользователь" if not owner_text and not beta_text else ""
+        chat_role_text = get_chat_role_status_text(member)
+        status_text = "\n👤 Просто пользователь" if not owner_text and not beta_text and not chat_role_text else ""
         description_text = f"\n📝 {get_description(user_id)}" if get_description(user_id) else ""
         marriage_text = get_profile_addition(int(chat_id), user_id)
         moderation_text = get_moderation_status_text(chat_id, user_id, member)
         first_seen_at = get_chat_member_first_seen(chat_id, user_id)
         reply_text = (
-            f"Ты <b>{username}</b>{owner_text}{beta_text}{status_text}{description_text}{marriage_text}"
+            f"Ты <b>{username}</b>{owner_text}{beta_text}{chat_role_text}{status_text}{description_text}{marriage_text}"
             f"{moderation_text}\n\n"
             f"Впервые появился в чате: {first_seen_at}\n"
             f"Последний твой актив:\n{last_active_time}\n"
@@ -1697,14 +1749,14 @@ def echo_all(message):
                     last_active_time = format_time_ago(result[0]) if result and result[0] else "Нет данных"
                 owner_text = "\n🌟 Владелец бота" if int(target_user_id) == owner_id else ""
                 beta_text = "\n💠 Бета-тестер бота" if int(target_user_id) in beta_testers else ""
-                # Добавляем статус "Просто пользователь", если пользователь не владелец и не бета-тестер
-                status_text = "\n👤 Просто пользователь" if not owner_text and not beta_text else ""
+                chat_role_text = get_chat_role_status_text(member)
+                status_text = "\n👤 Просто пользователь" if not owner_text and not beta_text and not chat_role_text else ""
                 description_text = f"\n📝 {get_description(target_user_id)}" if get_description(target_user_id) else ""
                 marriage_text = get_profile_addition(int(chat_id), target_user_id)
                 moderation_text = get_moderation_status_text(chat_id, target_user_id, member)
                 first_seen_at = get_chat_member_first_seen(chat_id, target_user_id)
                 reply_text = (
-                    f"Это <b>{target_user_name}</b>{owner_text}{beta_text}{status_text}{description_text}{marriage_text}"
+                    f"Это <b>{target_user_name}</b>{owner_text}{beta_text}{chat_role_text}{status_text}{description_text}{marriage_text}"
                     f"{moderation_text}\n\n"
                     f"Впервые появился в чате: {first_seen_at}\n"
                     f"Последний актив:\n{last_active_time}\n"
@@ -2244,6 +2296,7 @@ def echo_all(message):
 Топ месяц / Топ месяца - Топ крутышек за месяц в этом чате.
 Топ все / Топ вся - Топ крутышек за все время в этом чате.
 Кто ты @username / reply - Показывает инфу о пользователе.
+Кто админ - Показывает владельца и всех администраторов чата.
 Поженить пару @user1 @user2 - Принудительно зарегистрировать брак (только администраторы).
 Бан [срок] / Разбан - Блокировка/разблокировка пользователя (например: бан неделя, бан 3 месяца, бан год; без срока — бессрочно)
 Кик - Изгнание пользователя
