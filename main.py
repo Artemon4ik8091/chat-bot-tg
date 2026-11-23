@@ -276,6 +276,35 @@ def get_spouse(chat_id, user_id):
         return result[1] if result[0] == user_id else result[0]
     return None
 
+def get_marriage(chat_id, user_id):
+    with db_connection() as cursor:
+        cursor.execute('''
+            SELECT spouse1_id, spouse2_id, created_at FROM marriages
+            WHERE chat_id = ? AND (spouse1_id = ? OR spouse2_id = ?)
+        ''', (str(chat_id), user_id, user_id))
+        result = cursor.fetchone()
+    if not result:
+        return None
+    spouse_id = result[1] if result[0] == user_id else result[0]
+    return spouse_id, result[2]
+
+def format_marriage_duration(created_at, now=None):
+    if not created_at:
+        return "нет данных"
+    try:
+        created_dt = datetime.strptime(created_at, '%Y-%m-%d %H:%M:%S')
+        current_dt = now or datetime.now()
+        days = max(0, (current_dt - created_dt).days)
+        if days == 0:
+            return "менее дня"
+        if days % 10 == 1 and days % 100 != 11:
+            return f"{days} день"
+        if days % 10 in (2, 3, 4) and not 12 <= days % 100 <= 14:
+            return f"{days} дня"
+        return f"{days} дней"
+    except (TypeError, ValueError):
+        return "нет данных"
+
 def register_marriage(chat_id, user1_id, user2_id):
     min_id, max_id = sorted([user1_id, user2_id])
     with db_connection() as cursor:
@@ -413,7 +442,7 @@ def get_admins(message):
                 return None
             true_admins = []
             for i in admins:
-                if i.status == 'creator' or i.can_restrict_members == True:
+                if i.status in ('administrator', 'creator') and i.user:
                     true_admins.append(i.user.id)
         return true_admins
     except Exception as e:
@@ -491,7 +520,8 @@ def have_rights(message, set_la=False):
     if message.from_user.id == owner_id:
         return True
     la = read_la()
-    if message.from_user.id in get_admins(message):
+    admins = get_admins(message)
+    if admins is not None and message.from_user.id in admins:
         return True
     elif is_anon(message):
         return True
@@ -1113,8 +1143,8 @@ def handle_left_chat_member(message):
         try:
             bot.send_message(
                 message.chat.id,
-                f"Статистика {escape_html(user.first_name)} скрыта. "
-                "Если участник вернётся в чат, она восстановится.",
+                f"Пока-пока {escape_html(user.first_name)}. "
+                "Надеюсь, ты вернёшься в этот чат, когда будешь ГОТОВ к общению.",
                 parse_mode='HTML'
             )
         except Exception as e:
@@ -2239,6 +2269,7 @@ def echo_all(message):
 Барбарис да нет {вопрос} - Отвечает вероятностью от 0 до 100%
 Брак (reply) - Предложить брак пользователю.
 Развод - Развестись с пользователем.
+Мой брак - Показать информацию о своём браке.
 Браки / Список браков - Список всех браков в чате.
 Шипперим - Случайный шипперинг двух участников чата.
 </blockquote>\n"""
@@ -2469,6 +2500,37 @@ def echo_all(message):
                 )
             else:
                 bot.reply_to(message, "Так ты не в браке даже...")
+        except Exception as e:
+            catch_error(message, e)
+
+    if message.text.upper() in ('МОЙ БРАК', 'МОЙБРАК'):
+        try:
+            user_id = message.from_user.id
+            chat_id = message.chat.id
+            marriage = get_marriage(chat_id, user_id)
+            if not marriage:
+                bot.reply_to(message, "Ты не состоишь в браке.")
+                return
+
+            spouse_id, created_at = marriage
+            spouse_link = get_user_link_sync(spouse_id, chat_id)
+            try:
+                created_dt = datetime.strptime(created_at, '%Y-%m-%d %H:%M:%S')
+                created_str = created_dt.strftime('%d.%m.%Y')
+            except (TypeError, ValueError):
+                created_str = created_at or "нет данных"
+
+            bot.reply_to(
+                message,
+                (
+                    "💍 <b>Информация о браке</b>\n"
+                    f"Партнёр: {spouse_link}\n"
+                    f"Заключён: {created_str}\n"
+                    f"Длительность: {format_marriage_duration(created_at)}"
+                ),
+                parse_mode='HTML',
+                disable_web_page_preview=True
+            )
         except Exception as e:
             catch_error(message, e)
 
