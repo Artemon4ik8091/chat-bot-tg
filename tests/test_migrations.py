@@ -40,6 +40,7 @@ class MigrationTests(unittest.TestCase):
             'chat_warn_settings', 'chat_warns', 'chat_members',
             'chat_ban_history', 'chat_mutes', 'chat_user_awards',
             'global_user_awards',
+            'user_timezones',
             'schema_migrations'
         ]
         for tbl in expected_tables:

@@ -278,6 +278,17 @@ def migration_011_global_user_awards(cursor: sqlite3.Cursor):
     ''')
 
 
+def migration_012_user_timezones(cursor: sqlite3.Cursor):
+    """Store each user's preferred timezone offset and display name."""
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS user_timezones (
+            user_id TEXT PRIMARY KEY,
+            offset_minutes INTEGER NOT NULL,
+            timezone_label TEXT NOT NULL
+        )
+    ''')
+
+
 MIGRATIONS: List[Migration] = [
     Migration(1, "base_schema", migration_001_base_schema),
     Migration(2, "rp_requests", migration_002_rp_requests),
@@ -290,6 +301,7 @@ MIGRATIONS: List[Migration] = [
     Migration(9, "revoke_chat_bans", migration_009_revoke_chat_bans),
     Migration(10, "chat_user_awards", migration_010_chat_user_awards),
     Migration(11, "global_user_awards", migration_011_global_user_awards),
+    Migration(12, "user_timezones", migration_012_user_timezones),
 ]
 
 

@@ -11,7 +11,7 @@ import time
 import traceback
 import uuid
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import telebot
 from telebot.types import (
@@ -410,6 +410,54 @@ def write_la(la):
 def sha(text):
     text = str(text)
     return xxh32(text).hexdigest()
+
+RF_TIMEZONES = [
+    ("Калининград (МСК−1)", -60),
+    ("Москва (МСК)", 180),
+    ("Самара (МСК+1)", 240),
+    ("Екатеринбург (МСК+2)", 300),
+    ("Омск (МСК+3)", 360),
+    ("Красноярск (МСК+4)", 420),
+    ("Иркутск (МСК+5)", 480),
+    ("Якутск (МСК+6)", 540),
+    ("Владивосток (МСК+7)", 600),
+    ("Магадан (МСК+8)", 660),
+    ("Камчатка (МСК+9)", 720),
+]
+
+def set_user_timezone(user_id, offset_minutes, timezone_label):
+    with db_connection() as cursor:
+        cursor.execute(
+            '''INSERT INTO user_timezones (user_id, offset_minutes, timezone_label)
+               VALUES (?, ?, ?)
+               ON CONFLICT(user_id) DO UPDATE SET
+                   offset_minutes = excluded.offset_minutes,
+                   timezone_label = excluded.timezone_label''',
+            (str(user_id), offset_minutes, timezone_label)
+        )
+
+def get_user_timezone(user_id):
+    with db_connection() as cursor:
+        cursor.execute(
+            'SELECT offset_minutes, timezone_label FROM user_timezones WHERE user_id = ?',
+            (str(user_id),)
+        )
+        result = cursor.fetchone()
+    return result if result else None
+
+def format_timezone_current_time(offset_minutes):
+    local_now = datetime.now(timezone(timedelta(minutes=offset_minutes)))
+    return local_now.strftime('%d.%m.%Y %H:%M')
+
+def format_timezone_profile_text(user_id):
+    timezone_data = get_user_timezone(user_id)
+    if not timezone_data:
+        return ""
+    offset_minutes, timezone_label = timezone_data
+    return (
+        f"\n🕒 Текущее время: "
+        f"<b>{format_timezone_current_time(offset_minutes)}</b> ({escape_html(timezone_label)})"
+    )
 
 def retry_bot_call(message, func, *args, **kwargs):
     for attempt in range(3):
@@ -1309,6 +1357,81 @@ def echo_all(message):
     db = read_db()
     owner_id = db['owner_id']
 
+    timezone_match = re.match(
+        r'^\+часовой\s+пояс(?:\s+(.*))?$',
+        message.text.strip(),
+        flags=re.IGNORECASE
+    ) if message.text else None
+    if timezone_match:
+        payload = (timezone_match.group(1) or '').strip()
+        if payload:
+            normalized_payload = re.sub(r'\s+', '', payload).upper().replace('−', '-').replace('–', '-')
+            city_by_name = {
+                'КАЛИНИНГРАД': -60,
+                'МОСКВА': 180,
+                'МСК': 180,
+                'САМАРА': 240,
+                'ЕКАТЕРИНБУРГ': 300,
+                'ОМСК': 360,
+                'КРАСНОЯРСК': 420,
+                'ИРКУТСК': 480,
+                'ЯКУТСК': 540,
+                'ВЛАДИВОСТОК': 600,
+                'МАГАДАН': 660,
+                'КАМЧАТКА': 720,
+            }
+
+            city_label = next(
+                (label for label, offset in RF_TIMEZONES
+                 if label.split()[0].upper() == normalized_payload),
+                None
+            )
+            if normalized_payload in city_by_name:
+                offset = city_by_name[normalized_payload]
+                label = next((label for label, value in RF_TIMEZONES if value == offset), payload)
+                set_user_timezone(message.from_user.id, offset, label)
+                bot.reply_to(
+                    message,
+                    f"Часовой пояс установлен: {escape_html(label)}.",
+                    parse_mode='HTML'
+                )
+                return
+
+            relative_match = re.fullmatch(r'(?:МСК)?([+-])(\d{1,2})(?:Ч)?', normalized_payload)
+            if relative_match:
+                sign = 1 if relative_match.group(1) == '+' else -1
+                hours = int(relative_match.group(2))
+                if hours > 12:
+                    bot.reply_to(message, "Сдвиг относительно МСК должен быть от −12 до +12 часов.")
+                    return
+                offset = 180 + sign * hours * 60
+                label = f"МСК{relative_match.group(1)}{hours}"
+                set_user_timezone(message.from_user.id, offset, label)
+                bot.reply_to(
+                    message,
+                    f"Часовой пояс установлен: <b>{escape_html(label)}</b>.",
+                    parse_mode='HTML'
+                )
+                return
+
+            bot.reply_to(
+                message,
+                "Используйте МСК+2, МСК−2, +2, −2 или выберите часовой пояс кнопками."
+            )
+            return
+
+        markup = InlineKeyboardMarkup(row_width=2)
+        for label, offset in RF_TIMEZONES:
+            markup.add(
+                InlineKeyboardButton(label, callback_data=f'timezone_set_{offset}')
+            )
+        bot.reply_to(
+            message,
+            "Выберите часовой пояс:",
+            reply_markup=markup
+        )
+        return
+
     global_remove_match = re.fullmatch(
         r'снять\s+наградугл(?:\s+(.*))?',
         message.text.strip(),
@@ -1669,10 +1792,11 @@ def echo_all(message):
         description_text = f"\n📝 {get_description(user_id)}" if get_description(user_id) else ""
         marriage_text = get_profile_addition(int(chat_id), user_id)
         moderation_text = get_moderation_status_text(chat_id, user_id, member)
+        timezone_text = format_timezone_profile_text(user_id)
         first_seen_at = get_chat_member_first_seen(chat_id, user_id)
         reply_text = (
             f"Ты <b>{username}</b>{owner_text}{beta_text}{chat_role_text}{status_text}{description_text}{marriage_text}"
-            f"{moderation_text}\n\n"
+            f"{moderation_text}{timezone_text}\n\n"
             f"Впервые появился в чате: {first_seen_at}\n"
             f"Последний твой актив:\n{last_active_time}\n"
             f"Краткая стата (д|н|м|вся):\n{daily_count}|{weekly_count}|{monthly_count}|{all_time_count}"
@@ -1754,10 +1878,11 @@ def echo_all(message):
                 description_text = f"\n📝 {get_description(target_user_id)}" if get_description(target_user_id) else ""
                 marriage_text = get_profile_addition(int(chat_id), target_user_id)
                 moderation_text = get_moderation_status_text(chat_id, target_user_id, member)
+                timezone_text = format_timezone_profile_text(target_user_id)
                 first_seen_at = get_chat_member_first_seen(chat_id, target_user_id)
                 reply_text = (
                     f"Это <b>{target_user_name}</b>{owner_text}{beta_text}{chat_role_text}{status_text}{description_text}{marriage_text}"
-                    f"{moderation_text}\n\n"
+                    f"{moderation_text}{timezone_text}\n\n"
                     f"Впервые появился в чате: {first_seen_at}\n"
                     f"Последний актив:\n{last_active_time}\n"
                     f"Краткая стата (д|н|м|вся):\n{daily_count}|{weekly_count}|{monthly_count}|{all_time_count}"
@@ -2297,6 +2422,7 @@ def echo_all(message):
 Топ все / Топ вся - Топ крутышек за все время в этом чате.
 Кто ты @username / reply - Показывает инфу о пользователе.
 Кто админ - Показывает владельца и всех администраторов чата.
++часовой пояс [МСК±N] - Настроить часовой пояс пользователя.
 Поженить пару @user1 @user2 - Принудительно зарегистрировать брак (только администраторы).
 Бан [срок] / Разбан - Блокировка/разблокировка пользователя (например: бан неделя, бан 3 месяца, бан год; без срока — бессрочно)
 Кик - Изгнание пользователя
@@ -2917,6 +3043,28 @@ def handle_callback_query(call):
     except Exception as e:
         logging.error(f'Callback error: {e}')
         bot.answer_callback_query(call.id, f"Ошибка при обработке действия: {str(e)}")
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('timezone_set_'))
+def handle_timezone_callback(call):
+    try:
+        offset_text = call.data[len('timezone_set_'):]
+        offset = int(offset_text)
+        timezone_label = next(
+            (label for label, value in RF_TIMEZONES if value == offset),
+            f"UTC{offset // 60:+d}"
+        )
+        set_user_timezone(call.from_user.id, offset, timezone_label)
+        bot.answer_callback_query(call.id, f"Часовой пояс установлен: {timezone_label}")
+        if call.message:
+            bot.edit_message_text(
+                text=f"Часовой пояс установлен: <b>{escape_html(timezone_label)}</b>",
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                parse_mode='HTML'
+            )
+    except (TypeError, ValueError) as e:
+        bot.answer_callback_query(call.id, "Не удалось определить часовой пояс.")
+        logging.error("Timezone callback error: %s", e)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('marriage_'))
 def handle_marriage_callback(call):
